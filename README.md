@@ -1,6 +1,6 @@
 # Hydraulic Erosion Based Terrain Generation
 
-![screenshot of eroded gravel slope](screenshots/graveltable.png)
+<img src="screenshots/graveltable.png" alt="screenshot of eroded gravel slope" width="512" height="512">
 
 Terrain is made up of 3 layers, with decreasing hardness and increasing carraying capacity:
 - rock
