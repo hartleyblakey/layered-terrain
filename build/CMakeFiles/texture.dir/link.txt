@@ -1,2 +1,0 @@
-C:\msys64\mingw64\bin\ar.exe qc libtexture.a CMakeFiles/texture.dir/graphics/texture.cpp.obj
-C:\msys64\mingw64\bin\ranlib.exe libtexture.a

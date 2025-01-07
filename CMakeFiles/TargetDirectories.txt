@@ -1,6 +1,0 @@
-C:/Users/hartley/projects/layeredTerrain/CMakeFiles/stb_image.dir
-C:/Users/hartley/projects/layeredTerrain/CMakeFiles/texture.dir
-C:/Users/hartley/projects/layeredTerrain/CMakeFiles/shader.dir
-C:/Users/hartley/projects/layeredTerrain/CMakeFiles/layeredterrain.dir
-C:/Users/hartley/projects/layeredTerrain/CMakeFiles/ALL_BUILD.dir
-C:/Users/hartley/projects/layeredTerrain/CMakeFiles/ZERO_CHECK.dir

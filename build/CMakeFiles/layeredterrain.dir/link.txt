@@ -1,3 +1,0 @@
-"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\layeredterrain.dir/objects.a
-C:\msys64\mingw64\bin\ar.exe qc CMakeFiles\layeredterrain.dir/objects.a @CMakeFiles\layeredterrain.dir\objects1.rsp
-C:\msys64\mingw64\bin\g++.exe -g -Wl,--whole-archive CMakeFiles\layeredterrain.dir/objects.a -Wl,--no-whole-archive -o layeredterrain.exe -Wl,--out-implib,liblayeredterrain.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\layeredterrain.dir\linkLibs.rsp
