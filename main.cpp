@@ -14,6 +14,9 @@
 #include <graphics/shader.h>
 #include <graphics/texture.h>
 #include "main.h"
+
+const double PI = glm::pi<double>();
+
 using namespace glm;
 const char* getSeverity(GLenum severity) {
     switch(severity) {
@@ -156,9 +159,9 @@ void processInput(GLFWwindow* window) {
     }
 
     camPitch += float(dm.y);
-    camPitch = float(clamp(double(camPitch),-M_PI / 2.01,M_PI / 2.01));
+    camPitch = float(clamp(double(camPitch),-PI / 2.01,PI / 2.01));
     camYaw += float(dm.x);
-    camYaw = float(mod(double(camYaw), M_PI * 2.0));
+    camYaw = float(mod(double(camYaw), PI * 2.0));
 
     camForward = normalize(vec3(cos(camPitch) * sin(camYaw), cos(camPitch) * cos(camYaw), sin(camPitch)));
     camRight = normalize(cross(camForward, vec3(0,0,1)));

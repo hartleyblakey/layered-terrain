@@ -1,2 +1,4 @@
 build/
 CMakeFiles/
+imgui.ini
+.vscode/

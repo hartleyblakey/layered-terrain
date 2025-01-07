@@ -61,7 +61,7 @@ public:
         if (success) {
             if (compiled) glDeleteProgram(handle);
             handle = newHandle;
-            lastCompiled = std::filesystem::__file_clock::now();
+            lastCompiled = std::filesystem::file_time_type::clock::now();
             failedAttempts = 0;
         }
         else {
@@ -102,7 +102,7 @@ public:
 
             }
 
-            if (!didCompile) {std::cout << errorLog << std::endl;lastCompiled = std::filesystem::__file_clock::now();}
+            if (!didCompile) {std::cout << errorLog << std::endl;lastCompiled = std::filesystem::file_time_type::clock::now();}
         }
 
     }

@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.26)
+
+
 project(layeredterrain)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 
 include_directories(.)
 include_directories(graphics)
 include_directories(Libraries/include)
+
 
 #find_package( glfw3 3.3 REQUIRED )
 #asdsad

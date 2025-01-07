@@ -8,9 +8,9 @@
 using namespace std;
 
 std::string ShaderStageNames[3]{
-"Vertex",
-"Fragment",
-"Compute"
+    "Vertex",
+    "Fragment",
+    "Compute"
 };
 
 
