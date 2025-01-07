@@ -1,0 +1,68 @@
+[
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\gcc.exe  @CMakeFiles/stb_image.dir/includes_C.rsp -g -std=gnu11 -o CMakeFiles\\stb_image.dir\\Libraries\\include\\stb_image.c.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\stb_image.c",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/stb_image.c",
+  "output": "CMakeFiles/stb_image.dir/Libraries/include/stb_image.c.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/texture.dir/includes_CXX.rsp -g -o CMakeFiles\\texture.dir\\graphics\\texture.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\graphics\\texture.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/graphics/texture.cpp",
+  "output": "CMakeFiles/texture.dir/graphics/texture.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/shader.dir/includes_CXX.rsp -g -o CMakeFiles\\shader.dir\\graphics\\shader.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\graphics\\shader.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/graphics/shader.cpp",
+  "output": "CMakeFiles/shader.dir/graphics/shader.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\gcc.exe  @CMakeFiles/layeredterrain.dir/includes_C.rsp -g -std=gnu11 -o CMakeFiles\\layeredterrain.dir\\glad.c.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\glad.c",
+  "file": "C:/Users/hartley/projects/layeredTerrain/glad.c",
+  "output": "CMakeFiles/layeredterrain.dir/glad.c.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\main.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\main.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/main.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/main.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\Libraries\\include\\imgui\\imgui.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\imgui\\imgui.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/imgui/imgui.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/Libraries/include/imgui/imgui.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\Libraries\\include\\imgui\\imgui_impl_glfw.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\imgui\\imgui_impl_glfw.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/imgui/imgui_impl_glfw.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/Libraries/include/imgui/imgui_impl_glfw.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\Libraries\\include\\imgui\\imgui_impl_opengl3.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\imgui\\imgui_impl_opengl3.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/imgui/imgui_impl_opengl3.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/Libraries/include/imgui/imgui_impl_opengl3.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\Libraries\\include\\imgui\\imgui_draw.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\imgui\\imgui_draw.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/imgui/imgui_draw.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/Libraries/include/imgui/imgui_draw.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\Libraries\\include\\imgui\\imgui_tables.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\imgui\\imgui_tables.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/imgui/imgui_tables.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/Libraries/include/imgui/imgui_tables.cpp.obj"
+},
+{
+  "directory": "C:/Users/hartley/projects/layeredTerrain/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe  @CMakeFiles/layeredterrain.dir/includes_CXX.rsp -g -o CMakeFiles\\layeredterrain.dir\\Libraries\\include\\imgui\\imgui_widgets.cpp.obj -c C:\\Users\\hartley\\projects\\layeredTerrain\\Libraries\\include\\imgui\\imgui_widgets.cpp",
+  "file": "C:/Users/hartley/projects/layeredTerrain/Libraries/include/imgui/imgui_widgets.cpp",
+  "output": "CMakeFiles/layeredterrain.dir/Libraries/include/imgui/imgui_widgets.cpp.obj"
+}
+]

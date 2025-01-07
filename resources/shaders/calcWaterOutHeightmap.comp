@@ -1,0 +1,172 @@
+#version 460
+
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+#include "random"
+#include "heightmaperosioncommon"
+
+uniform uint uFrames;
+
+TerrainGenTileInfo[4] neighbors;
+TerrainGenTileInfo me = tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y];
+void getNeighbors() {
+
+    for (int i = 0; i < 4; i++) {
+        ivec2 o = offsets[i];
+        neighbors[i] = tiles[gl_GlobalInvocationID.x + o.x][gl_GlobalInvocationID.y + o.y];
+        //neighbors[i].water += 0.001;
+    }
+
+}
+
+void main() {
+    float groundHeight = getGroundHeight(unpackGroundLayer(me.ground));
+    float water;
+    unpackedLayer[3] fluid;
+    fluid = unpackFluidLayer(me.fluid,water);
+    float waterLevel = groundHeight + water + fluid[0].height + fluid[1].height + fluid[2].height;
+    if (any(equal(gl_GlobalInvocationID.xy,uvec2(0))) || any(equal(gl_GlobalInvocationID.xy,uvec2(MAPSIZE - 1)))) {
+        memoryBarrierBuffer();
+        TerrainGenTileInfo neighbor;
+        me.percentOut = vec4(0.0);
+        if(gl_GlobalInvocationID.x == 0){
+            neighbor = tiles[gl_GlobalInvocationID.x + 1][gl_GlobalInvocationID.y];
+            me.percentOut = (vec4(0,0,1,0) * max(seaLevel - (uintBitsToFloat(neighbor.fluid[WATER]) + getGroundHeight(unpackGroundLayer(neighbor.ground))),0.0)) / water;
+        }
+        if(gl_GlobalInvocationID.y == 0){
+            neighbor = tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y + 1];
+            me.percentOut = (vec4(1,0,0,0) * max(seaLevel - (uintBitsToFloat(neighbor.fluid[WATER]) + getGroundHeight(unpackGroundLayer(neighbor.ground))),0.0)) / water;
+        }
+
+        if(gl_GlobalInvocationID.x == MAPSIZE-1){
+            neighbor = tiles[gl_GlobalInvocationID.x - 1][gl_GlobalInvocationID.y];
+            me.percentOut = (vec4(0,0,0,1) * max(seaLevel - (uintBitsToFloat(neighbor.fluid[WATER]) + getGroundHeight(unpackGroundLayer(neighbor.ground))),0.0)) / water;
+        }
+        if(gl_GlobalInvocationID.y == MAPSIZE-1){
+            neighbor = tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y - 1];
+            me.percentOut = (vec4(0,1,0,0) * max(seaLevel - (uintBitsToFloat(neighbor.fluid[WATER]) + getGroundHeight(unpackGroundLayer(neighbor.ground))),0.0)) / water;
+        }
+        me.percentOut = vec4(0.00);
+        tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].percentOut = me.percentOut;
+        return;
+    }
+
+    getNeighbors();
+    //me.water += 0.01;
+    // get water out
+
+
+
+
+    float lowestHeight = waterLevel + 1.0;
+    int bestCandidate = -1;
+
+    float secondHeight = lowestHeight + 1.0;
+    int secondCandidate = bestCandidate;
+    vec4 waterLevels;
+    vec4 groundHeights;
+    for (int i = 0; i < 4; i++) {
+        unpackedLayer nground[4] = unpackGroundLayer(neighbors[i].ground);
+        float nw;
+        unpackedLayer nfluid[3] = unpackFluidLayer(neighbors[i].fluid,nw);
+
+        groundHeights[i] = getGroundHeight(nground);
+        waterLevels[i] = nw + nfluid[0].height + nfluid[1].height + nfluid[2].height + groundHeights[i];
+        if (waterLevels[i] < lowestHeight) {
+            secondHeight = lowestHeight;
+            secondCandidate = bestCandidate;
+            lowestHeight = waterLevels[i];
+            bestCandidate = i;
+        }
+        else if (waterLevels[i] < secondHeight) {
+            secondHeight = waterLevels[i];
+            secondCandidate = i;
+        }
+        if (groundHeights[i] > waterLevel) {
+            if (i == UP && me.velocity.y > 0.0) {me.velocity.x += me.velocity.y * 0.25;me.velocity.y *= 0.75;}
+            if (i == DOWN && me.velocity.y < 0.0) {me.velocity.x += me.velocity.y * 0.25;me.velocity.y *= 0.75;}
+            if (i == RIGHT && me.velocity.x > 0.0) {me.velocity.y += me.velocity.x * 0.25;me.velocity.x *= 0.75;}
+            if (i == LEFT && me.velocity.x < 0.0) {me.velocity.y += me.velocity.x * 0.25;me.velocity.x *= 0.75;}
+        }
+    }
+    float totalHD = dot(max(waterLevel - waterLevels,0.0),vec4(1));
+  me.velocity *= 0.999;
+   // me.velocity *= 0.99;
+    float hd = max(waterLevel - lowestHeight,0.0);
+    vec2 t2d = normalize(vec2(1,hd));
+    vec2 n2d = vec2(t2d.y,-t2d.x);//
+    //me.velocity += offsets[bestCandidate] * clamp(max(waterLevel - lowestHeight,0.0) * dt * 158.0,0.0,0.5/dt);
+    vec2 velocityToAdd = offsets[bestCandidate] * clamp(n2d.x * dt * 6.80,0.0,0.2/dt);
+    float percentAffected = water > 0.0 ? clamp(hd/water,0.0,1.0) : 0.0;
+
+    vec3 normal = sampleNormal(waterLevels);
+    //float hd = dot(max(waterLevel - waterLevels,vec4(1)),vec4(1)) * 0.25;
+     me.velocity += clamp(normal.xy * dt * -g * 3.1 * clamp(hd/(water+fluid[0].height+fluid[1].height+fluid[2].height),0.0,1.0),vec2(-0.15/dt),vec2(0.15/dt));
+    //me.velocity = mix(me.velocity, me.velocity + velocityToAdd, percentAffected);
+    //me.velocity = velocityToAdd * 15.0;
+    vec4 wout = vec4(0);
+    setSeed(uvec3(gl_GlobalInvocationID.yx,uFrames));
+    float r = random();
+    if (lowestHeight < waterLevel && bestCandidate >= 0 && water > 0.0) {
+
+        if (secondHeight < waterLevel && secondCandidate >= 0 && r > 0.7) {
+            bestCandidate = secondCandidate;
+            lowestHeight = secondHeight;
+        }
+        wout[bestCandidate] = clamp(((waterLevel) - lowestHeight) /  2.5, 0.0, water);
+    }
+    else {
+        //wout = min(vec4(random(),random(),random(),random()) * (water * 0.2),vec4(0.0001));
+    }
+
+
+
+
+    vec4 percentOut = water > 0.0 ? vec4(wout / water) : vec4(0);
+    percentOut = vec4(0);
+    r = random() * (abs(me.velocity.x) + abs(me.velocity.y));
+    float s = abs(me.velocity.x) + abs(me.velocity.y);
+    setSeed(uvec2(gl_GlobalInvocationID.xy));
+    float bias = random() * 0.08 - 0.04;
+    int axis = r  >  (abs(me.velocity.x) + bias)  * 1.0? 1 : 0;
+    int dir;
+    if (axis == 0) {
+        dir = me.velocity.x < 0.0 ? LEFT : RIGHT;
+
+    } else {
+        dir = me.velocity.y < 0.0 ? DOWN : UP;
+    }
+
+    percentOut[dir] = s * dt * 0.4;
+
+    vec2 windDirection = normalize(vec2(-0.5,0.1));
+    float windForce = 0.028;
+   // me.velocity.x += windForce * windDirection.x * max(waterLevel - waterLevels[RIGHT],0.0) * dot(vec2(-1,0),windDirection);
+    //me.velocity.y += windForce * windDirection.y * max(waterLevel - waterLevels[DOWN],0.0) * dot(vec2(0,1),windDirection);
+
+
+    percentOut[UP] = max(me.velocity.y,0.0) * dt;
+    percentOut[DOWN] = max(-me.velocity.y,0.0) * dt;
+    percentOut[LEFT] = max(-me.velocity.x,0.0) * dt;
+    percentOut[RIGHT] = max(me.velocity.x,0.0) * dt;
+
+
+    for (int diffusionDirection = 0; diffusionDirection < 4; diffusionDirection++) {
+        //int diffusionDirection = floatBitsToInt(r)%4;
+    float lowerBound = max(groundHeights[diffusionDirection], groundHeight);
+    float upperBound = min(waterLevels[diffusionDirection], waterLevel);
+
+    float waterOverlap = clamp(upperBound - lowerBound,0.0,water);
+
+    percentOut[diffusionDirection] += (water > 0.0 ? (waterOverlap/water) * 0.01 : 0.0) + water <= 0.0 ? 0.0 : clamp(waterLevel - waterLevels[diffusionDirection],0.0,10.0) * 0.011;
+    }
+ float totalPercentOut = dot(percentOut,vec4(1));
+    percentOut /= totalPercentOut > 1.0 ? totalPercentOut: 1.00;
+    percentOut = clamp(percentOut,vec4(0),vec4(0.45));
+
+    memoryBarrierBuffer();//
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].percentOut = percentOut;
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].prevFluid = me.fluid;
+      tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].velocity = clamp(me.velocity,vec2(-0.95/dt),vec2(0.95/dt));
+}

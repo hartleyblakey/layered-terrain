@@ -1,0 +1,89 @@
+#version 460 core
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+#include "random"
+#include "heightmaperosioncommon"
+
+float sinNoise(vec2 p) {
+    return ( sin(p.x) * 0.5 + 0.5 + sin(p.y) * 0.5 + 0.5);
+}
+
+TerrainGenTileInfo init (uvec2 uvecpos) {
+    vec2 p = vec2(uvecpos);
+    vec2 uv = p / vec2(MAPSIZE);
+vec4 heights = vec4(0);
+
+    TerrainGenTileInfo tile;
+    heights[BEDROCK] = sin(p.x / 80.0) * 0.5 + 0.5 + cos(p.y / 60.0) * 0.5 + 0.5;
+
+    float distanceFromCenter = distance(p,vec2(MAPSIZE/2));
+    float distanceScale = distanceFromCenter / float(MAPSIZE/2);
+    distanceScale *= distanceScale;
+    distanceScale *= distanceScale;
+    distanceScale *= distanceScale;
+    distanceScale *= distanceScale;
+    // was 10x
+    heights[BEDROCK] = abs(fbm(p / 700.0,10)) > mix(0.37,1.0,clamp(distanceScale * 1.0,0.0,1.0)) ? 1.0 : 0.0;
+   // tile.height += abs(fbm(p / 600.0 + 173.0,10) - 0.5) < 0.03 ? 2.0 : 0.0;
+   // tile.height += fbm(p / 300.0 - 82.0,15) * 55.0 * (max(float(MAPSIZE/2)-distance(p,vec2(MAPSIZE)/2.0),0.0) / float(MAPSIZE/2)) > 5.0 ? 3.0 : 0.0;
+    //tile.height -= 10.0;
+    uvec2 bedrockType = GRANITE;
+    float gravelAmount = 2.0;
+    float h = log(pow(fbm(p / 100.0 - vec2(123,203),10),5.0) * 0.5 + 1.0) * 200.0;
+    //h=5.0;
+    h += 15.0;
+    h += (1.0 - distanceFromCenter / float(MAPSIZE/2)) * (1.0 - distanceFromCenter / float(MAPSIZE/2)) * 25.0;
+    //if (uv.x + uv.y < 0.7) {bedrockType = CLAY; h = mix(h,40.0,0.9);gravelAmount = 0.0;}
+    heights[BEDROCK] *=  h;
+    setSeed(gl_GlobalInvocationID.xy);
+    heights[BEDROCK] += 1.0 + random() * 0.2;
+   //heights[BEDROCK] = uv.x < 0.1 + 0.01 * sin(uv.y * 10.0) ? 5.0 : 10.0 + uv.x * 30.0 + uv.y * 10.0 + 12.0; heights[LARGE] = 5.0;
+   if (any(equal(gl_GlobalInvocationID.xy,uvec2(0))) || any(equal(gl_GlobalInvocationID.xy,uvec2(MAPSIZE - 1)))) {heights[LARGE] = 0.0; heights[BEDROCK] = 15.0;}
+    //tile.height = (1.0 - distanceScale) * 100.0;
+  //  tile.height = pow(tile.height,2.0);//
+    //tile.height += 0.02 * p.x;//wasnt here
+  //  tile.height *= 1.5;//wasnt here
+   // tile.height = distanceScale * 90.0 + 20.0;
+    //tile.height = uv.y * 40.0 + 10.0;
+    if(heights[BEDROCK] > seaLevel)heights[BEDROCK] += noise(p/100.0) * 2.0 + 2.0;
+
+
+
+    //tile.height = 1.0;
+    //tile.height *= 4.0;
+    //if (any(equal(uvecpos,uvec2(0))) || any(greaterThanEqual(uvecpos,uvec2(MAPSIZE - 4)))) tile.height = 0.0;
+    // if(uvecpos.x == 0)tile.height = 0.0;
+    // if(uvecpos.y == 0)tile.height = 0.0;
+
+    // if(uvecpos.x == MAPSIZE-1)tile.height = 0.0;
+    //if(uvecpos.y == MAPSIZE-1)tile.height = 0.0;
+
+    heights[BEDROCK] = max(heights[BEDROCK],8.0);
+
+    //heights[BEDROCK] = floor(heights[BEDROCK] / 20.0) * 20.0;
+    float water = 0.0;
+
+   // heights[LARGE] = heights[BEDROCK];
+   heights[LARGE] += heights[BEDROCK] < 35.0 ? clamp(35.0 - heights[BEDROCK],0.0,1.0) * gravelAmount: 0.0;
+   water = max(seaLevel-heights[BEDROCK]-heights[LARGE],0.0);
+
+   heights[BEDROCK] += random() * 0.1;
+    //heights[BEDROCK] = 0.0;
+    tile.fluid = uvec4(0,0,0,floatBitsToUint(water));
+    tile.prevFluid = uvec4(0,0,0,floatBitsToUint(water));
+    tile.ground = uvec4(0);
+    tile.ground[BEDROCK] = packGroundLayer(newGroundLayer(bedrockType.x,heights[BEDROCK]));
+    tile.ground[LARGE] = packGroundLayer(newGroundLayer(GRAVEL.x,heights[LARGE]));
+    tile.ground[MEDIUM] = packGroundLayer(newGroundLayer(GRAYSAND.x,heights[MEDIUM]));
+    tile.ground[SMALL] = packGroundLayer(newGroundLayer(SILT.x,heights[SMALL]));
+    tile.velocity = vec2(0);
+tile.percentOut = vec4(0);
+   // tile.ground[BEDROCK] = 4096u * 1000u;
+    return tile;
+}
+
+void main() {
+
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y] = init(gl_GlobalInvocationID.xy);
+}

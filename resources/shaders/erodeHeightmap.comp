@@ -1,0 +1,334 @@
+#version 460
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+#include "random"
+#include "heightmaperosioncommon"
+
+uniform vec4 uMouse;
+uniform uint uFrames;
+
+TerrainGenTileInfo[4] neighbors;
+TerrainGenTileInfo me = tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y];
+
+void getNeighbors() {
+
+    for (int i = 0; i < 4; i++) {
+        ivec2 o = offsets[i];
+        neighbors[i] = tiles[gl_GlobalInvocationID.x + o.x][gl_GlobalInvocationID.y + o.y];
+        //neighbors[i].water += 0.001;
+    }
+
+}
+#define EROSIONSCALE  0.002
+#define DEPOSITIONSCALE 0.005
+
+#define EVAPORATION 0.0000022
+#define RAINFALL    0.0000055
+
+
+#define ROUNDTO24BIT(x) (round(x*4096.0)/4096.0)
+
+
+void main() {
+    unpackedLayer[4] ground = unpackGroundLayer(me.ground);
+    float groundHeight = getGroundHeight(ground);
+
+    float water;
+    unpackedLayer[3] myFluid = unpackFluidLayer(me.prevFluid,water);
+    float waterLevel = groundHeight + water + myFluid[0].height + myFluid[1].height + myFluid[2].height;
+    if (any(equal(gl_GlobalInvocationID.xy,uvec2(0))) || any(equal(gl_GlobalInvocationID.xy,uvec2(MAPSIZE - 1)))) {
+        water = clamp(seaLevel - groundHeight,0.0,100000.0);
+        memoryBarrierBuffer();
+        tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].fluid = uvec4(0,0,0,floatBitsToUint(water));
+        return;
+    }
+
+    getNeighbors();
+
+    float totalwin = 0.0;
+    float totalsin = 0.0;
+
+    vec4 percentIn;
+    percentIn[UP] = neighbors[UP].percentOut[DOWN];
+    percentIn[DOWN] = neighbors[DOWN].percentOut[UP];
+    percentIn[RIGHT] = neighbors[RIGHT].percentOut[LEFT];
+    percentIn[LEFT] = neighbors[LEFT].percentOut[RIGHT];
+
+float totalPercentOut = (me.percentOut.x + me.percentOut.y + me.percentOut.z + me.percentOut.w);
+float totalwout = water * totalPercentOut;
+
+
+
+
+    float RW;
+    unpackedLayer[3] RF = unpackFluidLayer(neighbors[RIGHT].prevFluid, RW);
+
+    float LW;
+    unpackedLayer[3] LF = unpackFluidLayer(neighbors[LEFT].prevFluid, LW);
+
+    float UW;
+    unpackedLayer[3] UF = unpackFluidLayer(neighbors[UP].prevFluid, UW);
+
+    float DW;
+    unpackedLayer[3] DF = unpackFluidLayer(neighbors[DOWN].prevFluid, DW);
+
+    vec4 neighborWaterTotals;
+    neighborWaterTotals[UP] = UW + (UF[0].height) + (UF[1].height) +(UF[2].height);
+    neighborWaterTotals[DOWN] = DW + (DF[0].height) + (DF[1].height) +(DF[2].height);
+    neighborWaterTotals[LEFT] = LW + (LF[0].height) + (LF[1].height) +(LF[2].height);
+    neighborWaterTotals[RIGHT] = RW + (RF[0].height) + (RF[1].height) +(RF[2].height);
+
+
+    #define H(x) getGroundHeight(unpackGroundLayer(x.ground))
+vec4 neighborGroundHeights = vec4(H(neighbors[0]),H(neighbors[1]),H(neighbors[2]),H(neighbors[3]));
+#undef H
+ vec4 neighborWaterLevels = neighborWaterTotals + neighborGroundHeights;
+    float kinetic = 0.0;
+    vec4 incomingWater;
+    incomingWater[UP]= percentIn[UP] * (UW);
+    if (groundHeight > neighborGroundHeights[UP]) {
+        kinetic += max(-neighbors[UP].velocity.y,0.0) * incomingWater[UP] * min(groundHeight - neighborGroundHeights[UP], UW);
+    }
+
+    incomingWater[DOWN]= percentIn[DOWN] * DW;
+        if (groundHeight > neighborGroundHeights[DOWN]) {
+        kinetic += max(neighbors[DOWN].velocity.y,0.0) * incomingWater[DOWN] * min(groundHeight - neighborGroundHeights[DOWN], DW);
+    }
+    incomingWater[RIGHT]=percentIn[RIGHT] * RW;
+        if (groundHeight > neighborGroundHeights[RIGHT]) {
+        kinetic += max(-neighbors[UP].velocity.x,0.0) * incomingWater[RIGHT] * min(groundHeight - neighborGroundHeights[RIGHT], RW);
+    }
+    incomingWater[LEFT]=percentIn[LEFT] * LW;
+        if (groundHeight > neighborGroundHeights[LEFT]) {
+        kinetic += max(neighbors[LEFT].velocity.x,0.0) * incomingWater[LEFT] * min(groundHeight - neighborGroundHeights[LEFT], LW);
+    }
+
+    totalwin = dot(incomingWater,vec4(1));
+
+
+    //float percentIncoming = totalwin > 0.0 ? (totalwin) / (totalwin + water) : 0.0;
+    float dampening = 1.0;
+    vec2 incomingMomentum = (neighbors[UP].velocity * percentIn[UP]  * neighborWaterTotals[UP]  * dampening+
+    neighbors[DOWN].velocity * percentIn[DOWN] * neighborWaterTotals[DOWN] * dampening+ neighbors[RIGHT].velocity * percentIn[RIGHT]  * neighborWaterTotals[RIGHT] * dampening+
+     neighbors[LEFT].velocity * percentIn[LEFT]  * neighborWaterTotals[LEFT]* dampening);
+    vec2 momentum = me.velocity * max((waterLevel - groundHeight) - totalPercentOut * (waterLevel - groundHeight),0.0);
+    momentum += incomingMomentum;
+    //me.velocity = mix(me.velocity,averageIncomingVelocity,);
+
+
+
+
+
+
+   // vec2 pressureOut;
+    //pressureOut.y = clamp(waterLevel - (neighborGroundHeights[UP] + UW),0.0,water) - clamp(waterLevel - (neighborGroundHeights[DOWN] + DW),0.0,water);
+    //pressureOut.x = clamp(waterLevel - (neighborGroundHeights[RIGHT] + RW),0.0,water) - clamp(waterLevel - (neighborGroundHeights[LEFT] + LW),0.0,water);
+
+#define SCALE(layer, index, factor) layer[index].height = ROUNDTO24BIT(layer[index].height * factor)
+#define SCALE3(layer, factor) SCALE(layer, 0, factor); SCALE(layer, 1, factor); SCALE(layer, 2, factor)
+    SCALE3(RF,percentIn[RIGHT]);
+    SCALE3(LF,percentIn[LEFT]);
+    SCALE3(UF,percentIn[UP]);
+    SCALE3(DF,percentIn[DOWN]);
+
+    SCALE3(myFluid, 1.0001 * clamp(1.0-totalPercentOut,0.0,1.0));
+
+    /*
+    scaleBy(RF,percentIn[RIGHT]);
+    scaleBy(LF,percentIn[LEFT]);
+    scaleBy(UF,percentIn[UP]);
+    scaleBy(DF,percentIn[DOWN]);
+
+
+    myFluid[0].height *= clamp(1.0-totalPercentOut,0.0,1.0);
+    myFluid[1].height *= clamp(1.0-totalPercentOut,0.0,1.0);
+    myFluid[2].height *= clamp(1.0-totalPercentOut,0.0,1.0);
+    */
+#undef SCALE
+#undef SCALE3
+
+    addTo(myFluid,RF);
+    addTo(myFluid,LF);
+    addTo(myFluid,UF);
+    addTo(myFluid,DF);
+
+    waterLevel = groundHeight + myFluid[0].height + myFluid[1].height + myFluid[2].height + water;
+
+     uint topLayer = findTopLayer(ground);
+
+    float lowestNeighbor = min(min(neighborGroundHeights.x,neighborGroundHeights.y),min(neighborGroundHeights.z,neighborGroundHeights.w));
+
+   // vec3 tangentX = vec3(1,0,neighbors[RIGHT].height + neighbors[RIGHT].water) - vec3(-1,0,neighbors[LEFT].height+neighbors[LEFT].water);
+    //vec3 tangentY = vec3(0,1,neighbors[UP].height + neighbors[UP].water) - vec3(0,-1,neighbors[DOWN].height + neighbors[DOWN].water);
+
+    // only consider the underlying terrain height
+
+
+   // vec3 tangentX = vec3(1,0,RW + neighborGroundHeights[RIGHT]) - vec3(-1,0,LW + (neighborGroundHeights[LEFT]));
+    //vec3 tangentY = vec3(0,1,UW + (neighborGroundHeights[UP])) - vec3(0,-1,DW + (neighborGroundHeights[DOWN]));
+
+    //vec3 normal = normalize(cross(tangentX, tangentY));
+    vec3 normal = sampleNormal(neighborWaterLevels);
+
+
+   // me.velocity += pressureOut * 0.7;
+    setSeed(gl_GlobalInvocationID.xy);
+   // me.velocity.x += random() * 0.001;
+
+
+
+
+
+
+  //  me.velocity += windDir * 0.2 * dt;
+
+
+
+    float percentMoving = me.percentOut.x + me.percentOut.y + me.percentOut.z + me.percentOut.w;
+    float flowrate = length(me.velocity) * (waterLevel - groundHeight);
+    float initialHeight = groundHeight;
+
+
+
+
+
+    water += totalwin;
+    waterLevel += totalwin;
+
+
+
+
+    water -= totalwout;
+    waterLevel -= totalwout;
+
+me.velocity = (waterLevel - groundHeight) > 0.0 ? momentum / (waterLevel - groundHeight) : vec2(0);
+
+   // me.sediment -= totalsout;
+   // me.sediment += totalsin;
+    float totalSediment = myFluid[0].height + myFluid[1].height + myFluid[2].height;
+    float CARRYINGCAPACITY = sedimentCapacity(me.velocity, vec3(myFluid[0].height,myFluid[1].height,myFluid[2].height),water);
+
+    float erosion =  2.451 * 0.18 * dt * streamPower(length(me.velocity) * water, acos(normal.z));
+    float idealErosion = erosion;
+
+   float idealMaxSlope = ground[topLayer].restingAngle;
+   float maxSlope = groundHeight - lowestNeighbor;
+
+    vec2 outOfPlace = vec2(0);
+    outOfPlace.x = groundHeight - (neighborGroundHeights[LEFT] + neighborGroundHeights[RIGHT]) * 0.5 ;
+    outOfPlace.y = groundHeight - (neighborGroundHeights[DOWN] + neighborGroundHeights[UP]) * 0.5;
+
+
+    float oop = max(outOfPlace.x,0.0) + max(outOfPlace.y,0.0);
+    float tooSteep = max(maxSlope - idealMaxSlope, 0.0);
+
+   // erosion = ((erosion + me.sediment) / me.water) < CARRYINGCAPACITY
+   //     ?
+  //      erosion
+ //       :
+ //       max((CARRYINGCAPACITY ) * me.water - me.sediment,0.0);
+   // erosion += min(tooSteep * tooSteep  * 0.0 + oop * oop * 0.1,2.0);
+ //   erosion *= EROSIONSCALE;
+ //erosion *= 100000.0;
+    erosion += kinetic * 0.025;
+
+     erosion *= ground[topLayer].erosivity;
+    erosion = min(erosion, min(ground[topLayer].height , max(CARRYINGCAPACITY - totalSediment,0.0)));
+    //erosion = min(erosion, ground[topLayer].height);
+
+    //erosion = max(CARRYINGCAPACITY - totalSediment,0.0);
+    erosion = min(erosion, max(groundHeight - lowestNeighbor,0.0));//
+    // erode the top layer based on the erosion
+    float thermal = min(tooSteep * tooSteep  * 0.01 + oop * oop * 0.00,0.1);
+    thermal += kinetic * 0.05 * ground[topLayer].erosivity;
+    thermal += clamp(idealErosion,0.0,1.0) * 0.01;
+    thermal = min(thermal,max(0.0,ground[topLayer].height-erosion));
+
+
+
+    erosion = clamp(erosion,0.0,0.2);
+    thermal = clamp(thermal,0.0,0.01);
+    thermal = min(ground[topLayer].height - erosion,thermal);
+    if(water == 0.0){thermal = 0.0;erosion = 0.0;}
+    erosion = clamp(erosion,0.0,ground[topLayer].height - thermal);
+    thermal = max(thermal,0.0);
+    if(ground[topLayer].height <  erosion + thermal) {erosion = 12120.0;}
+
+    ground[topLayer].height -= erosion;
+    ground[topLayer].height -= thermal;
+
+    // before adding the material to the fluid, calculate the deposition - randomly, for now
+    //float evaporation = min(EVAPORATION, water);
+    //float percentEvaporated = water > 0.0 ? evaporation / water : 1.0;
+   // float deposition = min(percentEvaporated * me.sediment, CARRYINGCAPACITY * me.water);
+
+
+    setSeed(uvec3(gl_GlobalInvocationID.xy,uFrames));
+    uint layerToDeposit = uint(random() * 2.999);
+    unpackedLayer depositedLayer = myFluid[layerToDeposit];
+
+    float deposition = max(totalSediment - CARRYINGCAPACITY,0.0);
+    deposition += length(me.velocity) <= 0.0 ? 0.1 : clamp(pow(1.0 / length(me.velocity),16.0) * 0.11,0.0,depositedLayer.height / 100.0);
+//deposition = 1.0;
+
+    deposition = clamp(deposition, 0.0, depositedLayer.height*0.25);
+
+   depositedLayer.height = deposition;
+    addTo(ground[getLayerOfMat(me.fluid[layerToDeposit] >> 24)], depositedLayer);
+    myFluid[layerToDeposit].height -= deposition;
+
+    // add eroded material into the fluid
+    uvec2 eroded = erodesInto(me.ground[topLayer] >> 24);
+    addTo(myFluid[eroded.y], newGroundLayer(eroded.x, erosion));
+    addTo(myFluid[getLayerOfMat(me.ground[topLayer] >> 24)], newGroundLayer(me.ground[topLayer] >> 24, thermal));
+    float percentNewMaterial = (water + myFluid[0].height + myFluid[1].height + myFluid[2].height) > 0.0 ? max(erosion + thermal - deposition,0.0) / (water + myFluid[0].height + myFluid[1].height + myFluid[2].height) : 0.0;
+    //me.velocity = mix(me.velocity,vec2(0),clamp(percentNewMaterial,0.0,1.0));
+
+
+//water = max(water,0.1);
+
+  float rain = gl_GlobalInvocationID.x > MAPSIZE - 80 ? 0.0008 * dt : 0.0008 * dt;
+  rain = 0.0002 * dt * 0.0;
+  //if (gl_GlobalInvocationID.xy == uvec2(uMouse.xy) && uMouse.z > 0.5 || true) water += 0.0000 * dt ;
+    float percentRained = rain > 0.0 ? rain / (water + rain) : 0.0;
+
+    me.velocity = mix(me.velocity,vec2(0),percentRained);
+    if (uFrames%8000 < 7000) {
+    water += rain;
+    }//
+    else {
+    water += rain * 1.00;
+   // water = max(water - 0.0001,0.0);
+    }
+//water = max(water - 0.0005,0.0);
+    //
+    ground[BEDROCK].height = max(ground[BEDROCK].height,1.0);
+    //water += 0.00001;
+
+    setSeed(uvec3(gl_GlobalInvocationID.xy,uFrames));
+//if(uFrames%100 == 0)ground[MEDIUM].height += (0.25/4096.0);
+//ground[2].height = 0.0;
+    for(int i = 0; i < 4; i++) {
+        float fractional = fract(ground[i].height * 4096.0);
+        ground[i].height = clamp(floor(ground[i].height * 4096.0)/4096.0,0.0,4096.0);
+        ground[i].height += random() < fractional ? (1.0/4096.0) : 0.9/4096;
+
+
+    }
+
+    for(int i = 0; i < 3; i++) {//
+        float fractional = fract(myFluid[i].height * 4096.0);
+        myFluid[i].height = clamp(floor(myFluid[i].height * 4096.0)/4096.0,0.0,4096.0);
+        myFluid[i].height += random() < fractional ? (1.0/4096.0) : 0.9/4096.0;
+}
+    //water = 0.0;//
+//water += 0.01;
+
+    memoryBarrierBuffer();
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].fluid = packFluidLayer(myFluid,clamp(water,0.0,100000.0));
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].ground = packGroundLayer(ground);
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].velocity = clamp(me.velocity,vec2(-0.95/dt),vec2(0.95/dt));
+   // tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].sediment = max(me.sediment,0.0);
+   // tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].tracked = track;
+}

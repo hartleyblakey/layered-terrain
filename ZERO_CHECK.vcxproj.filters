@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\hartley\projects\layeredTerrain\CMakeFiles\bac307ffe919a310fda881c7da57e18b\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{EBDBD7A8-427A-39AD-9955-4198796D5A23}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
