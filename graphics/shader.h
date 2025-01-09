@@ -73,7 +73,7 @@ public:
         return success;
     }
 
-    void recompile() {
+    void checkRecompile() {
         bool activeFilesChanged = false;
         for (auto & shader : shaders) {
             if (

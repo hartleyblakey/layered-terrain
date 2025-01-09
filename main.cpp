@@ -112,9 +112,9 @@ static void cursor_position_callback(GLFWwindow* window, double xpos, double ypo
     mousePos = dvec2(xpos, double(pxheight) - ypos);
 }
 
-bool shouldReset = false;
+bool shouldReset = true; // first frame reset
 bool paused = false;
-bool shouldStep = false;
+int queuedSteps = 0;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS){
@@ -124,7 +124,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         paused = !paused;
     }
     if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS){
-        shouldStep = true;
+        queuedSteps++;
     }
 }
 
@@ -141,9 +141,11 @@ void processInput(GLFWwindow* window) {
     double dt = t - lastInput;
     lastInput = t;
     dvec2 dm = ((mousePos - lastMouse) / dvec2(pxwidth, pxheight)) * sens;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) dm = dvec2(0);
-    lastMouse = mousePos;
 
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) 
+        dm = dvec2(0);
+
+    lastMouse = mousePos;
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         camPos += camForward * speed * float(dt);
@@ -158,14 +160,13 @@ void processInput(GLFWwindow* window) {
         camPos += camRight * speed * float(dt);
     }
 
-    camPitch += float(dm.y);
-    camPitch = float(clamp(double(camPitch),-PI / 2.01,PI / 2.01));
-    camYaw += float(dm.x);
-    camYaw = float(mod(double(camYaw), PI * 2.0));
+    camPitch = float(clamp(double(camPitch) + dm.y, -PI / 2.01, PI / 2.01));
+    camYaw = float(mod(double(camYaw) + dm.x, PI * 2.0));
 
     camForward = normalize(vec3(cos(camPitch) * sin(camYaw), cos(camPitch) * cos(camYaw), sin(camPitch)));
     camRight = normalize(cross(camForward, vec3(0,0,1)));
     camUp = normalize(cross(camRight, camForward));
+    
     viewMatrix = lookAt(vec3(0), camForward, camUp);
     viewProjectionMatrix = projectionMatrix * viewMatrix;
     invViewProjectionMatrix = inverse(viewProjectionMatrix);
@@ -221,6 +222,7 @@ int main(int, char**){
         glfwTerminate();
         return -1;
     }
+
     glfwMakeContextCurrent(window);
     glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
@@ -234,10 +236,7 @@ int main(int, char**){
     const char* fragSource = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/2dheightmapvis.frag";
     ShaderProgram shaderProgram(vertexSource, fragSource);
 
-
-
     glViewport(0,0,pxwidth,pxheight);
-
 
     GLuint vertexPositionBuffer;
     GLuint terrainDataSSBO;
@@ -245,27 +244,19 @@ int main(int, char**){
     glCreateBuffers(1, &vertexPositionBuffer);
     glNamedBufferStorage(vertexPositionBuffer, sizeof(vertexPositions), vertexPositions, GL_DYNAMIC_STORAGE_BIT);
 
-
     const int TOTALMAPBYTES = 2 * MAPSIZE * MAPSIZE * sizeof(TerrainGenTileInfo);
-   glCreateBuffers(1, &terrainDataSSBO);
-   glNamedBufferStorage(terrainDataSSBO, TOTALMAPBYTES, NULL,  GL_MAP_READ_BIT);
-   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, terrainDataSSBO);
+    glCreateBuffers(1, &terrainDataSSBO);
+    glNamedBufferStorage(terrainDataSSBO, TOTALMAPBYTES, NULL,  GL_MAP_READ_BIT);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, terrainDataSSBO);
 
+    const char* initSource = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/initializeHeightmap.comp";
+    ShaderProgram initializeHeightmapComputeProgram(initSource);
 
-    const char* compSource1 = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/initializeHeightmap.comp";
-    ShaderProgram initializeHeightmapComputeProgram(compSource1);
-    initializeHeightmapComputeProgram.use();
-    glDispatchCompute(MAPSIZE / 8, MAPSIZE / 8, 1);
+    const char* waterOutSource = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/calcWaterOutHeightmap.comp";
+    ShaderProgram calcWaterOutHeightmapComputeProgram(waterOutSource);
 
-    const char* compSource2 = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/calcWaterOutHeightmap.comp";
-    ShaderProgram calcWaterOutHeightmapComputeProgram(compSource2);
-
-
-    const char* compSource3 = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/erodeHeightmap.comp";
-    ShaderProgram erodeHeightmapComputeProgram(compSource3);
-
-
-
+    const char* erodeSource = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/erodeHeightmap.comp";
+    ShaderProgram erodeHeightmapComputeProgram(erodeSource);
 
 
     shaderProgram.use();
@@ -276,7 +267,6 @@ int main(int, char**){
     GLuint vaoPositionBindingPoint = 0;
 
     GLuint attribPos = 0;
-
 
     glEnableVertexArrayAttrib(VAO,attribPos);
 
@@ -296,8 +286,6 @@ int main(int, char**){
 
     shaderProgram.use();
 
-//
-
     GLuint frogTex = loadImageGL("D:/OpenGLProject/resources/textures/original_square.bmp", GL_RGB8);
     glBindTextureUnit(0, frogTex);
     glUniform1i(glGetUniformLocation(shaderProgram.handle, "frogTex"), 0);
@@ -305,9 +293,12 @@ int main(int, char**){
     glUniform2f(glGetUniformLocation(shaderProgram.handle, "uRes"), (float)pxwidth, (float)pxheight);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram.handle, "uInvViewProjMatrix"), 1, GL_FALSE, &invViewProjectionMatrix[0][0]);
     glUniform3f(glGetUniformLocation(shaderProgram.handle, "uCameraPos"), (float)camPos.x, (float)camPos.y, (float)camPos.z);
+   
     unsigned int uFrames = 1;
+
     double mousex = 1;
     double mousey = 0;
+
     glfwSetTime(0);
     int numFrames = 0;
     double lastTime = 0.0;
@@ -318,34 +309,32 @@ int main(int, char**){
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 460");
-
-
-
-
-
 
     while(!glfwWindowShouldClose(window))
     {
         glfwGetCursorPos(window, &mousex, &mousey);
         float lmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS ? 1.0 : 0.0;
         float rmb = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS ? 1.0 : 0.0;
+
         if (shouldReset) {
             shouldReset = false;
-            initializeHeightmapComputeProgram.recompile();
+            initializeHeightmapComputeProgram.checkRecompile();
             initializeHeightmapComputeProgram.use();
             glDispatchCompute(MAPSIZE / 8, MAPSIZE / 8, 1);
         }
 
-        if (!paused || shouldStep) {
-            shouldStep = false;
-            for(int i = 0; i < ITERATIONSPERFRAME; i++) {
+        if (!paused || queuedSteps) {
+            int iterations = paused ? queuedSteps : ITERATIONSPERFRAME;
+            queuedSteps = 0;
+            for(int i = 0; i < iterations; i++) {
 
-                calcWaterOutHeightmapComputeProgram.recompile();
-                erodeHeightmapComputeProgram.recompile();
+                calcWaterOutHeightmapComputeProgram.checkRecompile();
+                erodeHeightmapComputeProgram.checkRecompile();
                 calcWaterOutHeightmapComputeProgram.use();
                 glUniform1ui(glGetUniformLocation(calcWaterOutHeightmapComputeProgram.handle, "uFrames"), heightmapErosionIterations);
                 glMemoryBarrier( GL_SHADER_STORAGE_BARRIER_BIT);
@@ -353,30 +342,27 @@ int main(int, char**){
 
                 erodeHeightmapComputeProgram.use();
                 glUniform4f(glGetUniformLocation(erodeHeightmapComputeProgram.handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
-
                 glUniform1ui(glGetUniformLocation(erodeHeightmapComputeProgram.handle, "uFrames"), heightmapErosionIterations);
+
                 glMemoryBarrier( GL_SHADER_STORAGE_BARRIER_BIT);
                 glDispatchCompute(MAPSIZE / 8, MAPSIZE / 8, 1);
                 heightmapErosionIterations++;
             }
         }
+
         processInput(window);
 
-
-
-        shaderProgram.use();
-        glBindVertexArray(VAO);
-
-        glUniform3f(glGetUniformLocation(shaderProgram.handle, "uCameraPos"), (float)camPos.x, (float)camPos.y, (float)camPos.z);
-
-        glUniform4f(glGetUniformLocation(shaderProgram.handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
+        // Visualize Erosion
         glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
+        shaderProgram.checkRecompile();
+        shaderProgram.use();
 
+        glBindVertexArray(VAO);
+
+        glUniform3f(glGetUniformLocation(shaderProgram.handle, "uCameraPos"), (float)camPos.x, (float)camPos.y, (float)camPos.z);
+        glUniform4f(glGetUniformLocation(shaderProgram.handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
         glUniformMatrix4fv(glGetUniformLocation(shaderProgram.handle, "uInvViewProjMatrix"), 1, GL_FALSE, &invViewProjectionMatrix[0][0]);
         glUniform1ui(glGetUniformLocation(shaderProgram.handle, "uFrames"), uFrames);
 
@@ -385,6 +371,11 @@ int main(int, char**){
         }
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        // Record and draw UI
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
         ImGui::Begin("Window name here :)");
         ImGui::Text("hello there");
@@ -406,8 +397,7 @@ int main(int, char**){
         double currentTime = glfwGetTime();
 
         numFrames++;
-        shaderProgram.recompile();
-        shaderProgram.use();
+        
         if (currentTime - lastTime >= 1.0) {
             printf("%i fps at %i by %i with map size of %i square\n", numFrames,pxwidth, pxheight,MAPSIZE);
             lastTime = currentTime;
