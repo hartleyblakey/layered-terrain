@@ -111,6 +111,9 @@ public:
         glUseProgram(handle);
     }
 
+    void setName(const char* name) {
+        programName = name;
+    }
 
 
     ShaderProgram(const std::string& vertSource, const std::string& fragSource) {

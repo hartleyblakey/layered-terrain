@@ -23,12 +23,10 @@ void getNeighbors() {
 #define EROSIONSCALE  0.002
 #define DEPOSITIONSCALE 0.005
 
-#define EVAPORATION 0.0000022
-#define RAINFALL    0.0000055
-
+#define EVAPORATION 0.00022
+#define RAINFALL    0.02055
 
 #define ROUNDTO24BIT(x) (round(x*4096.0)/4096.0)
-
 
 void main() {
     unpackedLayer[4] ground = unpackGroundLayer(me.ground);
@@ -37,6 +35,7 @@ void main() {
     float water;
     unpackedLayer[3] myFluid = unpackFluidLayer(me.prevFluid,water);
     float waterLevel = groundHeight + water + myFluid[0].height + myFluid[1].height + myFluid[2].height;
+    
     if (any(equal(gl_GlobalInvocationID.xy,uvec2(0))) || any(equal(gl_GlobalInvocationID.xy,uvec2(MAPSIZE - 1)))) {
         water = clamp(seaLevel - groundHeight,0.0,100000.0);
         memoryBarrierBuffer();
@@ -55,8 +54,8 @@ void main() {
     percentIn[RIGHT] = neighbors[RIGHT].percentOut[LEFT];
     percentIn[LEFT] = neighbors[LEFT].percentOut[RIGHT];
 
-float totalPercentOut = (me.percentOut.x + me.percentOut.y + me.percentOut.z + me.percentOut.w);
-float totalwout = water * totalPercentOut;
+    float totalPercentOut = (me.percentOut.x + me.percentOut.y + me.percentOut.z + me.percentOut.w);
+    float totalwout = water * totalPercentOut;
 
 
 
@@ -74,16 +73,18 @@ float totalwout = water * totalPercentOut;
     unpackedLayer[3] DF = unpackFluidLayer(neighbors[DOWN].prevFluid, DW);
 
     vec4 neighborWaterTotals;
-    neighborWaterTotals[UP] = UW + (UF[0].height) + (UF[1].height) +(UF[2].height);
-    neighborWaterTotals[DOWN] = DW + (DF[0].height) + (DF[1].height) +(DF[2].height);
-    neighborWaterTotals[LEFT] = LW + (LF[0].height) + (LF[1].height) +(LF[2].height);
+    neighborWaterTotals[UP]    = UW + (UF[0].height) + (UF[1].height) +(UF[2].height);
+    neighborWaterTotals[DOWN]  = DW + (DF[0].height) + (DF[1].height) +(DF[2].height);
+    neighborWaterTotals[LEFT]  = LW + (LF[0].height) + (LF[1].height) +(LF[2].height);
     neighborWaterTotals[RIGHT] = RW + (RF[0].height) + (RF[1].height) +(RF[2].height);
 
 
-    #define H(x) getGroundHeight(unpackGroundLayer(x.ground))
-vec4 neighborGroundHeights = vec4(H(neighbors[0]),H(neighbors[1]),H(neighbors[2]),H(neighbors[3]));
+#define H(x) getGroundHeight(unpackGroundLayer(x.ground))
+    vec4 neighborGroundHeights = vec4(H(neighbors[0]),H(neighbors[1]),H(neighbors[2]),H(neighbors[3]));
 #undef H
- vec4 neighborWaterLevels = neighborWaterTotals + neighborGroundHeights;
+
+    vec4 neighborWaterLevels = neighborWaterTotals + neighborGroundHeights;
+
     float kinetic = 0.0;
     vec4 incomingWater;
     incomingWater[UP]= percentIn[UP] * (UW);
@@ -259,9 +260,9 @@ me.velocity = (waterLevel - groundHeight) > 0.0 ? momentum / (waterLevel - groun
     ground[topLayer].height -= thermal;
 
     // before adding the material to the fluid, calculate the deposition - randomly, for now
-    //float evaporation = min(EVAPORATION, water);
-    //float percentEvaporated = water > 0.0 ? evaporation / water : 1.0;
-   // float deposition = min(percentEvaporated * me.sediment, CARRYINGCAPACITY * me.water);
+//     float evaporation = min(EVAPORATION, water);
+//     float percentEvaporated = water > 0.0 ? evaporation / water : 1.0;
+//    float deposition = min(percentEvaporated * me.sediment, CARRYINGCAPACITY * me.water);
 
 
     setSeed(uvec3(gl_GlobalInvocationID.xy,uFrames));
@@ -289,7 +290,7 @@ me.velocity = (waterLevel - groundHeight) > 0.0 ? momentum / (waterLevel - groun
 //water = max(water,0.1);
 
   float rain = gl_GlobalInvocationID.x > MAPSIZE - 80 ? 0.0008 * dt : 0.0008 * dt;
-  rain = 0.0002 * dt * 0.0;
+  rain = 0.0002 * dt * 1.0;
   //if (gl_GlobalInvocationID.xy == uvec2(uMouse.xy) && uMouse.z > 0.5 || true) water += 0.0000 * dt ;
     float percentRained = rain > 0.0 ? rain / (water + rain) : 0.0;
 

@@ -31,9 +31,6 @@ struct TerrainGenTileInfo {
     //TerrainGenTrackedInfo tracked;
 };
 
-
-
-
 // Ground: restingAngle[4] Erosvity[4] Height[24]
 // Fluid:  restingAngle[4] Erosvity[4] Height[24]
 struct unpackedLayer {

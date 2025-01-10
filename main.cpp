@@ -128,7 +128,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     }
 }
 
-
 float camPitch = 0.0;
 float camYaw = 0.0;
 
@@ -142,7 +141,7 @@ void processInput(GLFWwindow* window) {
     lastInput = t;
     dvec2 dm = ((mousePos - lastMouse) / dvec2(pxwidth, pxheight)) * sens;
 
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) 
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE) 
         dm = dvec2(0);
 
     lastMouse = mousePos;
@@ -166,7 +165,7 @@ void processInput(GLFWwindow* window) {
     camForward = normalize(vec3(cos(camPitch) * sin(camYaw), cos(camPitch) * cos(camYaw), sin(camPitch)));
     camRight = normalize(cross(camForward, vec3(0,0,1)));
     camUp = normalize(cross(camRight, camForward));
-    
+
     viewMatrix = lookAt(vec3(0), camForward, camUp);
     viewProjectionMatrix = projectionMatrix * viewMatrix;
     invViewProjectionMatrix = inverse(viewProjectionMatrix);
@@ -232,9 +231,20 @@ int main(int, char**){
 
     glEnable              ( GL_DEBUG_OUTPUT );
     glDebugMessageCallback( MessageCallback, nullptr );
-    const char* vertexSource = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/2dheightmapvis.vert";
-    const char* fragSource = "C:/Users/hartley/projects/layeredTerrain/resources/shaders/2dheightmapvis.frag";
-    ShaderProgram shaderProgram(vertexSource, fragSource);
+    
+    ShaderProgram visProgram2D(
+        "./resources/shaders/fullscreenTri.vert", 
+        "./resources/shaders/2dheightmapvis.frag"
+    );
+    visProgram2D.setName("2D Shaded");
+
+    ShaderProgram visProgram3D(
+        "./resources/shaders/fullscreenTri.vert", 
+        "./resources/shaders/erosionMapRaymarcher.frag"
+    );
+    visProgram3D.setName("3D Raymarched");
+
+    ShaderProgram* activeVisProgram = &visProgram2D;
 
     glViewport(0,0,pxwidth,pxheight);
 
@@ -259,7 +269,7 @@ int main(int, char**){
     ShaderProgram erodeHeightmapComputeProgram(erodeSource);
 
 
-    shaderProgram.use();
+    visProgram2D.use();
     GLuint VAO;
 
     glCreateVertexArrays(1,&VAO);
@@ -284,16 +294,11 @@ int main(int, char**){
 
     glEnableVertexAttribArray(0);
 
-    shaderProgram.use();
+    activeVisProgram->use();
 
     GLuint frogTex = loadImageGL("D:/OpenGLProject/resources/textures/original_square.bmp", GL_RGB8);
     glBindTextureUnit(0, frogTex);
-    glUniform1i(glGetUniformLocation(shaderProgram.handle, "frogTex"), 0);
-    glUniform1ui(glGetUniformLocation(shaderProgram.handle, "uFrames"), 0);
-    glUniform2f(glGetUniformLocation(shaderProgram.handle, "uRes"), (float)pxwidth, (float)pxheight);
-    glUniformMatrix4fv(glGetUniformLocation(shaderProgram.handle, "uInvViewProjMatrix"), 1, GL_FALSE, &invViewProjectionMatrix[0][0]);
-    glUniform3f(glGetUniformLocation(shaderProgram.handle, "uCameraPos"), (float)camPos.x, (float)camPos.y, (float)camPos.z);
-   
+
     unsigned int uFrames = 1;
 
     double mousex = 1;
@@ -352,33 +357,66 @@ int main(int, char**){
 
         processInput(window);
 
-        // Visualize Erosion
         glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        shaderProgram.checkRecompile();
-        shaderProgram.use();
+        // Visualize Erosion
+        if (activeVisProgram) {
+            activeVisProgram->checkRecompile();
+            activeVisProgram->use();
 
-        glBindVertexArray(VAO);
+            glBindVertexArray(VAO);
+            glUniform1i(glGetUniformLocation(activeVisProgram->handle, "frogTex"), 0);
+            glUniform3f(glGetUniformLocation(activeVisProgram->handle, "uCameraPos"), (float)camPos.x, (float)camPos.y, (float)camPos.z);
+            glUniform4f(glGetUniformLocation(activeVisProgram->handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
+            glUniformMatrix4fv(glGetUniformLocation(activeVisProgram->handle, "uInvViewProjMatrix"), 1, GL_FALSE, &invViewProjectionMatrix[0][0]);
+            glUniform1ui(glGetUniformLocation(activeVisProgram->handle, "uFrames"), uFrames);
+            glUniform2f(glGetUniformLocation(activeVisProgram->handle, "uRes"), (float)pxwidth, (float)pxheight);
 
-        glUniform3f(glGetUniformLocation(shaderProgram.handle, "uCameraPos"), (float)camPos.x, (float)camPos.y, (float)camPos.z);
-        glUniform4f(glGetUniformLocation(shaderProgram.handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
-        glUniformMatrix4fv(glGetUniformLocation(shaderProgram.handle, "uInvViewProjMatrix"), 1, GL_FALSE, &invViewProjectionMatrix[0][0]);
-        glUniform1ui(glGetUniformLocation(shaderProgram.handle, "uFrames"), uFrames);
-
-        if (framebufferSizeChanged) {
-            glUniform2f(glGetUniformLocation(shaderProgram.handle, "uRes"), (float)pxwidth, (float)pxheight);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
         }
-
-        glDrawArrays(GL_TRIANGLES, 0, 3);
 
         // Record and draw UI
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::Begin("Window name here :)");
-        ImGui::Text("hello there");
+        ImGui::Begin("Options");
+        ImGui::Text("Choose a visualization shader");
+
+        if (ImGui::BeginCombo("##pick a visualization method", activeVisProgram ? activeVisProgram->programName.c_str() : "None")) {
+            bool isSelected;
+            
+            // 2D
+            isSelected = activeVisProgram == &visProgram2D;
+            if (ImGui::Selectable(visProgram2D.programName.c_str(), &isSelected)) {
+                activeVisProgram = &visProgram2D;
+            }
+            if (isSelected) {
+                ImGui::SetItemDefaultFocus();
+            }
+
+            // 3D
+            isSelected = activeVisProgram == &visProgram3D;
+            if (ImGui::Selectable(visProgram3D.programName.c_str(), &isSelected)) {
+                activeVisProgram = &visProgram3D;
+            }
+            if (isSelected) {
+                ImGui::SetItemDefaultFocus();
+            }
+
+            // None
+            isSelected = activeVisProgram == nullptr;
+            if (ImGui::Selectable("None", &isSelected)) {
+                activeVisProgram = nullptr;
+            }
+            if (isSelected) {
+                ImGui::SetItemDefaultFocus();
+            }
+
+            ImGui::EndCombo();
+        }
+
         ImGui::End();
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
