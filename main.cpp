@@ -8,6 +8,7 @@
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 
+#include "gif.h"
 
 #include <GLFW/glfw3.h>
 
@@ -305,10 +306,17 @@ int main(int, char**){
     double mousey = 0;
 
     glfwSetTime(0);
-    int numFrames = 0;
+    int framesInSecond = 0;
     double lastTime = 0.0;
 
-    const int ITERATIONSPERFRAME = 1;
+    bool recordingGif = false;
+    int recordedGifFrames = 0;
+    int gifFrameStep = 250;
+    GifWriter gifWriter = {};
+
+    int frameCount = 0;
+
+    int iterationsPerFrame = 1;
     int heightmapErosionIterations = 0;
     glfwSwapInterval(1);
 
@@ -334,7 +342,7 @@ int main(int, char**){
         }
 
         if (!paused || queuedSteps) {
-            int iterations = paused ? queuedSteps : ITERATIONSPERFRAME;
+            int iterations = paused ? queuedSteps : iterationsPerFrame;
             queuedSteps = 0;
             for(int i = 0; i < iterations; i++) {
 
@@ -356,7 +364,7 @@ int main(int, char**){
         }
 
         processInput(window);
-
+    
         glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
@@ -416,6 +424,36 @@ int main(int, char**){
 
             ImGui::EndCombo();
         }
+        ImGui::Text("Simulation Settings");
+        if (ImGui::InputInt("Iterations per frame", &iterationsPerFrame)) {
+            iterationsPerFrame = glm::clamp(iterationsPerFrame, 1, 32);
+        }
+
+        ImGui::Text("Gif Recording");
+        if (ImGui::InputInt("Rendered frames per gif frame", &gifFrameStep)) {
+            gifFrameStep = glm::clamp(gifFrameStep, 1, 512);
+        }
+
+        if (!recordingGif && ImGui::Button("Record GIF")) {
+            const char* gifWriterFilename = "output.gif";
+
+            gifWriter = {};
+            GifBegin(&gifWriter, gifWriterFilename, MAPSIZE, MAPSIZE, 10, 4, true);
+            recordingGif = true;
+        }
+
+        if (ImGui::Button("Stop recording")) {
+            recordingGif = false;
+            GifEnd(&gifWriter);
+        }
+
+        if (recordingGif && frameCount % gifFrameStep == 0) {
+            uint8_t* image = (uint8_t*)malloc(MAPSIZE * MAPSIZE * 4);
+            glReadnPixels(0, 0, MAPSIZE, MAPSIZE, GL_RGBA, GL_UNSIGNED_BYTE, MAPSIZE * MAPSIZE * 4, image);
+            
+            GifWriteFrame(&gifWriter, image, MAPSIZE, MAPSIZE, 10, 4, true);
+        }
+
 
         ImGui::End();
         ImGui::Render();
@@ -428,18 +466,18 @@ int main(int, char**){
         }
 
         uFrames++;
-        
+        frameCount++;
         //printf("%i\n",uFrames);
         glfwSwapBuffers(window);
         glfwPollEvents();
         double currentTime = glfwGetTime();
 
-        numFrames++;
+        framesInSecond++;
         
         if (currentTime - lastTime >= 1.0) {
-            printf("%i fps at %i by %i with map size of %i square\n", numFrames,pxwidth, pxheight,MAPSIZE);
+            printf("%i fps at %i by %i with map size of %i square\n", framesInSecond,pxwidth, pxheight,MAPSIZE);
             lastTime = currentTime;
-            numFrames = 0;
+            framesInSecond = 0;
         }
 
     }

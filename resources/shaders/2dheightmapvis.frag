@@ -13,6 +13,11 @@ uniform mat4 uInvViewProjMatrix;
 uniform vec3 uCameraPos;
 uniform uint uDebugMode;
 
+
+ #define SHADOWS
+ #define LARGE_AO
+
+
 struct Ray {
     vec3 ro;
     vec3 rd;
@@ -54,8 +59,6 @@ vec3 colorTerrain(vec4 groundComp, vec3 normal) {
     return c;
 }
 vec3 colorTerrain(vec4 groundComp, ivec2 fc, vec3 normal) {
-
-
     uvec4 mat = tiles[fc.x%MAPSIZE][fc.y%MAPSIZE].ground >> 24;
     vec3 rock = getColorOfMat(mat[3],fc);
     vec3 sand = getColorOfMat(mat[1],fc);
@@ -78,15 +81,42 @@ vec3 colorTerrain(vec4 groundComp, ivec2 fc, vec3 normal) {
     vec3 c = rock;
     c = mix(c,gravel,clamp(4.0 * (groundComp[LARGE]),0.0,1.0));
     c = mix(c,sand,clamp(4.0 * (groundComp[MEDIUM]+groundComp[SMALL]),0.0,1.0));
-    c = mix(c,snow,clamp(pow(normal.z,3.0) * (height-85.0)*0.125,0.0,1.0));
+   //  c = mix(c,snow,clamp(pow(normal.z,3.0) * (height-85.0)*0.125,0.0,1.0));
     vec3 sun = normalize(vec3(2.4,2.3,1.0));
 
-    float sunOcclusion = max(dot(normal,sun),0.0);
+    float sunOcclusion = pow(max(dot(normal,sun), 0.0), 1.0);
+    float skyOcclusion = max(dot(normal, vec3(0, 0, 1)), 0.0) * mix(0.25,1.25,ao);
 
-    vec3 light = mix(pow(sunColor,vec3(1.5)),pow(sunColor,vec3(8.0)),pow(1.0-sunOcclusion,6.0)) * 1.5 * sunOcclusion;
-    light += vec3(0.7,0.8,1.0) * 0.15 * max(dot(normal,vec3(0,0,1)),0.0) * mix(0.25,1.25,ao);
+#ifdef LARGE_AO
+    for (int i = 0; i < 16; i++) {
+        float dst = random() * 512.0;
+        float a = random() * 2.0 * 3.14159;
+        if (cheapGround(fc + ivec2(cos(a) * dst, sin(a) * dst)) > height + dst * 0.05) {
+            skyOcclusion *= 0.8;
+        }
+    }
+#endif
+
+#ifdef SHADOWS
+    vec3 pos = vec3(fc, cheapGround(fc) );
+    for (int i = 0; i < 16; i++) {
+        pos += sun * 16.0 * random();
+        if (cheapGround(ivec2(pos.xy) ) >= pos.z) {
+            sunOcclusion *= 0.75;
+        }
+        
+    }
+#endif
+
+    vec3 light = mix(pow(sunColor,vec3(1.5)),pow(sunColor,vec3(8.0)),pow(1.0-sunOcclusion,6.0)) * 3.0 * sunOcclusion;
+    light += vec3(0.7,0.8,1.0) * 0.45 * (skyOcclusion);
     light += pow(sunColor,vec3(4.0)) * 0.2 *  mix(0.25,1.25,ao) * max(dot(normal,-sun),0.0);
+    
+    
     c *= light;
+    // c = normal * 0.5 + 0.5;
+     // c = vec3(sunOcclusion);
+     //  c = vec3(skyOcclusion);
     return c;
 }
 
@@ -131,7 +161,7 @@ void main() {
 
     int scale = 1;
     ivec2 offset = ivec2((uMouse.xy / uRes.xy) * float(MAPSIZE));
-    offset = ivec2(-100,10);
+    offset = ivec2(0, 0   );
     vec2 p = gl_FragCoord.xy;
     vec2 m = uMouse.xy;
     if(showCrosssection) {p.y -= 0.2 * uRes.y; m.y -= 0.2 * uRes.y;}
@@ -222,8 +252,18 @@ void main() {
     // col2 = vec3(deposition);
     //col2 = vec3(abs(tile.velocity),isNegative/dt/100000.0) * dt;
     //col = magma_quintic((dot(v2,vec2(1,0))*0.5+0.5)) * length(t.velocity) * 0.15 * uintBitsToFloat(t.fluid[WATER]);
-    col2 = magma_quintic(pow(length(tile.velocity) * 0.13 * (water + totalSediment),0.25));//
+     col2 = magma_quintic(pow(length(tile.velocity) * 0.13 * (water + totalSediment), 0.25));//
     // col2 = vec3(1) * water*3.0;
+    
+    // col2.r += totalSediment * 0.25;
+    // col2.g += dot(groundComp.xyz, vec3(1)) * 0.25;
+    // col2.b = 0.0;
+
+    // col2 = vec3(dot(groundComp.xyz, vec3(1))) * 0.125;
+
+    
+
+    col2 = max(col2,vec3(0));
     col2 *= col2;
 
     if(showContour) {
@@ -235,9 +275,9 @@ void main() {
 
         //col2 = mix(col2,vec3(0,0,0),pow(1.0-2.0*abs(fract(h)-0.5),5));
     }
-
     col2 = max(col2,vec3(0));
-
+    
+    col2 = col; 
     col = (uMouse.x * 1 > gl_FragCoord.x) ? col2 : col;
     //if (col.r < 0.0) col.r = 1.0;
     //col = col2;

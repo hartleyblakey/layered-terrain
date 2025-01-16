@@ -2,3 +2,4 @@ build/
 CMakeFiles/
 imgui.ini
 .vscode/
+output.gif

@@ -8,7 +8,7 @@ const int MAPSIZE = int(1u << LOGMAPSIZE);
 
 const float dt = 0.01 ;
 const float maxVel = 8.0;
-const float dx = 16.0; // meters per grid square side
+const float dx = 1.0; // meters per grid square side
 const float g = -9.8;
 
 
@@ -187,14 +187,15 @@ layout(binding = 2, std430) buffer world{
     TerrainGenTileInfo tiles[][MAPSIZE];
 };
 const ivec2 offsets[8] = {
-ivec2(0,1),
-ivec2(0,-1),
-ivec2(1,0),
-ivec2(-1,0),
-        ivec2(1,1),
-        ivec2(-1,1),
-        ivec2(1,-1),
-        ivec2(-1,-1)
+    ivec2( 0,  1),
+    ivec2( 0, -1),
+    ivec2( 1,  0),
+    ivec2(-1,  0),
+
+    ivec2( 1,  1),
+    ivec2(-1,  1),
+    ivec2( 1, -1),
+    ivec2(-1, -1)
 
 };
 #define UP 0
@@ -213,13 +214,16 @@ const vec3 GRAINSIZEMM = vec3(        0.005,
                                       0.5,
                                       8.0
 );
+
 const vec3 SETTLINGVELOCITYMMS = vec3(       0.001,
                                              80.0,
                                              300.0
 );
+
 float weightedAverage(in vec3 values, in vec3 weights) {
     return (values[0] * weights[0] + values[1] * weights[1] + values[2] * weights[2]) / (weights[0] + weights[1] + weights[2]);
 }
+
 float weightedMedian(in vec3 values, in vec3 weights) {
     float v = (values[0] * weights[0] + values[1] * weights[1] + values[2] * weights[2]) / (weights[0] + weights[1] + weights[2]);
 
@@ -237,22 +241,18 @@ float weightedMedian(in vec3 values, in vec3 weights) {
 }
 
 
-
 #define IDFROMFLOATMAT(angle, erosivity) ((pack4bitfloat(angle) << 4) | (pack4bitfloat(erosivity)))
 #define IDFROMMAT(angle, erosivity) ((angle << 4) | erosivity)
 
 
 
-
-
-#define GRANITE uvec2(2u, BEDROCK)
-#define GRAVEL  uvec2(121u, LARGE)
-#define GRAYSAND uvec2(156u, MEDIUM)
-#define SILT uvec2(175u, SMALL)
-#define CLAY uvec2(41u, BEDROCK)
-#define WETCLAY uvec2(250u, MEDIUM)
-#define DIRT uvec2(124u, MEDIUM)
-
+#define GRANITE     uvec2(18u,       BEDROCK)
+#define GRAVEL      uvec2(121u,     LARGE)
+#define GRAYSAND    uvec2(252u,     MEDIUM) // 156u
+#define SILT        uvec2(175u,     SMALL)
+#define CLAY        uvec2(41u,      BEDROCK)
+#define WETCLAY     uvec2(250u,     MEDIUM)
+#define DIRT        uvec2(124u,     MEDIUM)
 
 
 
@@ -395,8 +395,10 @@ TerrainGenTileInfo sampleTile(in ivec2 fc) {
 vec2 sampleTileHeight(in ivec2 p) {
     TerrainGenTileInfo t = sampleTile(p);
     vec2 r;
+    float water;
+    unpackedLayer[3] fluid = unpackFluidLayer(t.fluid, water);
     r.x = getGroundHeight(unpackGroundLayer(t.ground));
-    r.y = uintBitsToFloat(t.fluid[WATER]);
+    r.y = uintBitsToFloat(t.fluid[WATER]) + fluid[0].height + fluid[1].height + fluid[2].height;
     return r;
 }
 /*
