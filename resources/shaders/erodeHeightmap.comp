@@ -7,6 +7,7 @@ layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 uniform vec4 uMouse;
 uniform uint uFrames;
+uniform uint uDebugMode;
 
 TerrainGenTileInfo[4] neighbors;
 TerrainGenTileInfo me = tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y];
@@ -36,6 +37,8 @@ float stochasticRoundNormalized(float x, int bits) {
 #define ROUNDTO24BIT(x) (round(x*4096.0)/4096.0)
 
 void main() {
+    vec2 debug = vec2(0);
+
     unpackedLayer[4] ground = unpackGroundLayer(me.ground);
     float groundHeight = getGroundHeight(ground);
 
@@ -207,6 +210,8 @@ void main() {
         erosion = ground[topLayer].height;
     }
 
+    setSeed(uvec3(gl_GlobalInvocationID.xy,uFrames));
+
     {
         float weathering = stochasticRoundNormalized(0.001 * dt, 12);
         erosion += weathering;
@@ -217,7 +222,7 @@ void main() {
     ground[topLayer].height -= erosion;
     ground[topLayer].height -= thermal;
 
-    setSeed(uvec3(gl_GlobalInvocationID.xy,uFrames));
+    
     uint layerToDeposit = uint(random() * 2.999);
 
     unpackedLayer depositedLayer = myFluid[layerToDeposit];
@@ -268,8 +273,21 @@ void main() {
         myFluid[i].height += random() < fractional ? (1.0 / 4096.0) : 0.9 / 4096.0;
     }
 
+    debug = tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].debug;
+    switch (uDebugMode) {
+        case 0: debug = vec2(0); // "None",                 // 0
+        break; case 1: debug += vec2(erosion, deposition);// "Erosion | Deposition", // 1
+        break; case 2: debug = clamp(me.velocity, vec2(-0.95 / dt), vec2(0.95 / dt));// "Velocity",             // 2
+        //break; case 3: // "Water Out",            // 3
+        //break; case 4:// "Sediment Height",      // 4
+        break; case 5: debug += vec2(deposition - erosion);// "Total E | Total D",
+        break;
+    };
+
+
     memoryBarrierBuffer();
     tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].fluid = packFluidLayer(myFluid, clamp(water, 0.0, 100000.0));
     tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].ground = packGroundLayer(ground);
     tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].velocity = clamp(me.velocity, vec2(-0.95 / dt), vec2(0.95 / dt));
+    tiles[gl_GlobalInvocationID.x][gl_GlobalInvocationID.y].debug = debug;
 }

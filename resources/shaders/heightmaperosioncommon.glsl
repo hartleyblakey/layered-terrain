@@ -21,12 +21,11 @@ struct TerrainGenTileInfo {
     uvec4 prevFluid;
     vec4 percentOut;
     vec2 velocity;
-
-    //TerrainGenTrackedInfo tracked;
+    vec2 debug;
 };
 
-// Ground: restingAngle[4] Erosvity[4] Height[24]
-// Fluid:  restingAngle[4] Erosvity[4] Height[24]
+// Ground: restingAngle[4] Erosivity[4] Height[24]
+// Fluid:  restingAngle[4] Erosivity[4] Height[24]
 struct unpackedLayer {
     float restingAngle;
     float erosivity;
@@ -322,7 +321,7 @@ float sedimentCapacity(in float velocity, in vec3 currentSedimentComp, in float 
     const float U3 = U2 * velocity;
     const float gh = abs(-g * depth);
     const float y = SEDIMENTCOEF * (0.0261 * ((U2 * medianGrainSize) / (gh * depth)) + 0.0142 * ((U3) / (gh * averageSettlingVelocity)) + 1.0459);
-    return clamp(y,0.0,depth * 4.0);
+    return clamp(y, 0.0, depth * 4.0);
 }
 
 float sedimentCapacity(in vec2 velocity, in vec3 currentSedimentComp, in float depth) {

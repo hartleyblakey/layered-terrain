@@ -1,6 +1,6 @@
 #version 460 core
 
-out vec4 FragColor;
+
 
 #include "random"
 #include "heightmaperosioncommon"
@@ -157,6 +157,9 @@ vec3 skybox(vec3 r) {
 const bool showCrosssection = false ;
 const bool showVelocity = false;
 const bool showContour = false;
+
+out vec4 FragColor;
+
 void main() {
     int scale = 1;
     ivec2 offset = ivec2((uMouse.xy / uRes.xy) * float(MAPSIZE));
@@ -165,6 +168,13 @@ void main() {
     vec2 m = uMouse.xy;
     if(showCrosssection) {p.y -= 0.2 * uRes.y; m.y -= 0.2 * uRes.y;}
     ivec2 fc = ivec2(p) / scale  + offset;
+
+
+    if(fc.x < 0 || fc.y < -99999 || fc.x > MAPSIZE-1 || fc.y > MAPSIZE-1) {
+        FragColor = vec4(0.9, 0.6, 0.1, 1.0);
+        return;
+    }
+
     setSeed(uvec2(fc));
     vec2 tileMouse = vec2(m) / vec2(scale) + offset;
     vec2 tilePos =   vec2(p) / vec2(scale) + offset;
@@ -242,8 +252,15 @@ void main() {
         //col2 = mix(col2,vec3(0,0,0),pow(1.0-2.0*abs(fract(h)-0.5),5));
     }
     col2 = max(col2,vec3(0));
+    if (uDebugMode == 0) {
+        col2 = col; 
+    } else {
+        float vm = m.y / uRes.y;
+        float debugScale = vm * vm * vm * vm * vm * vm * vm * vm * 128.0;
+        col  = vec3(abs(tile.debug.x), max(tile.debug.xx, vec2(0))) * debugScale;
+        col2 = vec3(abs(tile.debug.y),  max(tile.debug.yy, vec2(0))) * debugScale;
+    }
     
-    col2 = col; 
     col = (uMouse.x * 1 > gl_FragCoord.x) ? col2 : col;
     col = sqrt(col);    
 

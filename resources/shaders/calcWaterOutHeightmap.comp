@@ -119,7 +119,6 @@ void main() {
     percentOut[RIGHT] = max( me.velocity.x, 0.0) * dt;
 
     for (int diffusionDirection = 0; diffusionDirection < 4; diffusionDirection++) {
-            //int diffusionDirection = floatBitsToInt(r)%4;
         float lowerBound = max(groundHeights[diffusionDirection], groundHeight);
         float upperBound = min(waterLevels[diffusionDirection], waterLevel);
 

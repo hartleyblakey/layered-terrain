@@ -186,6 +186,7 @@ typedef struct TerrainGenTileInfo {
     uvec4 prevFluid;
     vec4 percentOut;
     vec2 velocity;
+    vec2 debug;
 
     //TerrainGenTrackedInfo tracked;
 }TerrainGenTileInfo;
@@ -301,6 +302,16 @@ int main(int, char**){
     glBindTextureUnit(0, frogTex);
 
     unsigned int uFrames = 1;
+    unsigned int uDebugMode = 0;
+
+    const char* DEBUG_MODE_NAMES[] = {
+        "None",                 // 0
+        "Erosion | Deposition", // 1
+        "Velocity",             // 2
+        "Water Out",            // 3
+        "Sediment Height",      // 4
+        "Total E | Total D",
+    };
 
     double mousex = 1;
     double mousey = 0;
@@ -313,8 +324,9 @@ int main(int, char**){
     int recordedGifFrames = 0;
     int gifFrameStep = 250;
     GifWriter gifWriter = {};
+    uint8_t* currentGifFrame;
 
-    int frameCount = 0;
+    int gifFrameCount = 0;
 
     int iterationsPerFrame = 1;
     int heightmapErosionIterations = 0;
@@ -345,9 +357,11 @@ int main(int, char**){
             int iterations = paused ? queuedSteps : iterationsPerFrame;
             queuedSteps = 0;
             for(int i = 0; i < iterations; i++) {
+                if (i == 0) {
+                    calcWaterOutHeightmapComputeProgram.checkRecompile();
+                    erodeHeightmapComputeProgram.checkRecompile();
+                }
 
-                calcWaterOutHeightmapComputeProgram.checkRecompile();
-                erodeHeightmapComputeProgram.checkRecompile();
                 calcWaterOutHeightmapComputeProgram.use();
                 glUniform1ui(glGetUniformLocation(calcWaterOutHeightmapComputeProgram.handle, "uFrames"), heightmapErosionIterations);
                 glMemoryBarrier( GL_SHADER_STORAGE_BARRIER_BIT);
@@ -356,6 +370,7 @@ int main(int, char**){
                 erodeHeightmapComputeProgram.use();
                 glUniform4f(glGetUniformLocation(erodeHeightmapComputeProgram.handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
                 glUniform1ui(glGetUniformLocation(erodeHeightmapComputeProgram.handle, "uFrames"), heightmapErosionIterations);
+                glUniform1ui(glGetUniformLocation(erodeHeightmapComputeProgram.handle, "uDebugMode"), uDebugMode);
 
                 glMemoryBarrier( GL_SHADER_STORAGE_BARRIER_BIT);
                 glDispatchCompute(MAPSIZE / 8, MAPSIZE / 8, 1);
@@ -379,7 +394,9 @@ int main(int, char**){
             glUniform4f(glGetUniformLocation(activeVisProgram->handle, "uMouse"), (float)mousex, (float)(pxheight - mousey), lmb, rmb);
             glUniformMatrix4fv(glGetUniformLocation(activeVisProgram->handle, "uInvViewProjMatrix"), 1, GL_FALSE, &invViewProjectionMatrix[0][0]);
             glUniform1ui(glGetUniformLocation(activeVisProgram->handle, "uFrames"), uFrames);
+            glUniform1ui(glGetUniformLocation(activeVisProgram->handle, "uDebugMode"), uDebugMode);
             glUniform2f(glGetUniformLocation(activeVisProgram->handle, "uRes"), (float)pxwidth, (float)pxheight);
+            
 
             glDrawArrays(GL_TRIANGLES, 0, 3);
         }
@@ -390,8 +407,9 @@ int main(int, char**){
         ImGui::NewFrame();
 
         ImGui::Begin("Options");
-        ImGui::Text("Choose a visualization shader");
 
+        // draw visualization shader drop down
+        ImGui::Text("Choose a visualization shader");
         if (ImGui::BeginCombo("##pick a visualization method", activeVisProgram ? activeVisProgram->programName.c_str() : "None")) {
             bool isSelected;
             
@@ -424,34 +442,60 @@ int main(int, char**){
 
             ImGui::EndCombo();
         }
+
+        // draw debug mode drop down
+        
+        if (activeVisProgram == &visProgram2D) {
+            ImGui::Text("Choose a Debug Mode");
+            if (ImGui::BeginCombo("##Debug Mode", DEBUG_MODE_NAMES[uDebugMode])) {
+                for (uint mode = 0; mode < sizeof(DEBUG_MODE_NAMES) / sizeof(DEBUG_MODE_NAMES[0]); mode++) {
+                    bool isSelected = mode == uDebugMode;
+                    if (ImGui::Selectable(DEBUG_MODE_NAMES[mode], &isSelected)) {
+                        uDebugMode = mode;
+                    }
+                    if (isSelected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+
+                }
+                ImGui::EndCombo();
+            }
+        }
+
         ImGui::Text("Simulation Settings");
         if (ImGui::InputInt("Iterations per frame", &iterationsPerFrame)) {
             iterationsPerFrame = glm::clamp(iterationsPerFrame, 1, 32);
         }
 
         ImGui::Text("Gif Recording");
-        if (ImGui::InputInt("Rendered frames per gif frame", &gifFrameStep)) {
-            gifFrameStep = glm::clamp(gifFrameStep, 1, 512);
+        if (!recordingGif) {
+            if (ImGui::InputInt("Rendered frames per gif frame", &gifFrameStep)) {
+                gifFrameStep = glm::clamp(gifFrameStep, 1, 512);
+            }
+
+            if (ImGui::Button("Record GIF")) {
+                gifFrameCount = 0;
+                const char* gifWriterFilename = "output.gif";
+                currentGifFrame = (uint8_t*)malloc(MAPSIZE * MAPSIZE * 4);
+                gifWriter = {};
+                GifBegin(&gifWriter, gifWriterFilename, MAPSIZE, MAPSIZE, 10, 4, true);
+                recordingGif = true;
+            }
         }
 
-        if (!recordingGif && ImGui::Button("Record GIF")) {
-            const char* gifWriterFilename = "output.gif";
+        std::string stopRecordingLabel = std::format("Stop recording ({})###StopGifRecordingButton", gifFrameCount / gifFrameStep + 1);
+        if (recordingGif) {
+            if (gifFrameCount > 0 && ImGui::Button(stopRecordingLabel.c_str())) {
+                recordingGif = false;
+                
+                GifEnd(&gifWriter);
+                free(currentGifFrame);
+            }
 
-            gifWriter = {};
-            GifBegin(&gifWriter, gifWriterFilename, MAPSIZE, MAPSIZE, 10, 4, true);
-            recordingGif = true;
-        }
-
-        if (ImGui::Button("Stop recording")) {
-            recordingGif = false;
-            GifEnd(&gifWriter);
-        }
-
-        if (recordingGif && frameCount % gifFrameStep == 0) {
-            uint8_t* image = (uint8_t*)malloc(MAPSIZE * MAPSIZE * 4);
-            glReadnPixels(0, 0, MAPSIZE, MAPSIZE, GL_RGBA, GL_UNSIGNED_BYTE, MAPSIZE * MAPSIZE * 4, image);
-            
-            GifWriteFrame(&gifWriter, image, MAPSIZE, MAPSIZE, 10, 4, true);
+            if (gifFrameCount % gifFrameStep == 0) {
+                glReadnPixels(0, 0, MAPSIZE, MAPSIZE, GL_RGBA, GL_UNSIGNED_BYTE, MAPSIZE * MAPSIZE * 4, currentGifFrame);
+                GifWriteFrame(&gifWriter, currentGifFrame, MAPSIZE, MAPSIZE, 10, 4, true);
+            }
         }
 
 
@@ -466,7 +510,9 @@ int main(int, char**){
         }
 
         uFrames++;
-        frameCount++;
+        if (recordingGif) {
+            gifFrameCount++;
+        }
         //printf("%i\n",uFrames);
         glfwSwapBuffers(window);
         glfwPollEvents();
