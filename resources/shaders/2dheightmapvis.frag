@@ -158,17 +158,16 @@ const bool showCrosssection = false ;
 const bool showVelocity = false;
 const bool showContour = false;
 void main() {
-
     int scale = 1;
     ivec2 offset = ivec2((uMouse.xy / uRes.xy) * float(MAPSIZE));
-    offset = ivec2(0, 0   );
+    offset = ivec2(0, 0);
     vec2 p = gl_FragCoord.xy;
     vec2 m = uMouse.xy;
     if(showCrosssection) {p.y -= 0.2 * uRes.y; m.y -= 0.2 * uRes.y;}
     ivec2 fc = ivec2(p) / scale  + offset;
     setSeed(uvec2(fc));
-    vec2 tileMouse = vec2(m)/vec2(scale)  + offset;
-    vec2 tilePos = vec2(p) / vec2(scale) + offset;
+    vec2 tileMouse = vec2(m) / vec2(scale) + offset;
+    vec2 tilePos =   vec2(p) / vec2(scale) + offset;
 
     vec2 uv = p / uRes;
     vec2 cuv = (p * 2.0 - uRes) / uRes.y;
@@ -191,10 +190,6 @@ void main() {
         waterLevels[i] = groundHeights[i] + neighborWater[i];
     }
     vec3 normal = sampleNormal(fc);
-    //normal = sampleNormal(floor(tilePos * 16.0) / 16.0);
-   // tile = upsampleTile(ivec2(fract(tilePos) * float(scale)), tile, neighbors);
-   // if(distance(fract(tilePos),vec2(0.5)) > 10.25 || true)tile = sampleTile(tilePos);//
-    //d *= 100.0;
 
     unpackedLayer ground[4] = unpackGroundLayer(tile.ground);
 
@@ -218,10 +213,9 @@ void main() {
     float percentOut = clamp( ((wout.x + wout.y + wout.z + wout.w) / max(water,0.001)),0.0,1.0);
 
     vec3 waterScatter = vec3(0.01,0.4,0.7);
-    //waterScatter = mix(waterScatter, vec3(0.9), percentOut * 100.0);
+
     vec3 waterAbsorption = vec3(0.7,0.3,0.1);
-    //waterAbsorption = mix(waterAbsorption, vec3(0.0), clamp(percentOut * 100.0,0.0,1.0));
-    //col = mix(col,vec3(1),tile.water > 0.005 ? percentOut : 0.0);
+
     float waterDepth = waterLevel - groundLevel;
 
     col *= exp(-water * waterAbsorption * 2.0);
@@ -235,36 +229,8 @@ void main() {
 
     float erosion = streamPower(length(tile.velocity) * dt * water, acos(normal.z)) * 0.5;
     float deposition = pow(1.0 / length(tile.velocity),16.0) * 0.01;
-    //  col2 = vec3(erosion);
-
-    //col2 = vec3(carryingCapacity / water) * 0.15;
 
     uint topLayer = findTopLayer(ground);
-    col2 = vec3(groundLevel) * 0.01;
-
-    // col2 = vec3(carryingCapacity / water) * 1.0;
-    col2 = vec3(erosion) * 10.05;
-    //    col2 = vec3(1) * dot(tile.percentOut,vec4(1));
-    // col2 = vec3(ground[topLayer].height) * 0.01;
-    col2 = vec3(totalSediment / carryingCapacity) * 0.5 * (water > 0.01 ? 1.0 : 0.0);
-    //   col2 = vec3(carryingCapacity);
-    float isNegative = tile.velocity.y < 0.0 ? 1.0 : 0.0;
-    // col2 = vec3(deposition);
-    //col2 = vec3(abs(tile.velocity),isNegative/dt/100000.0) * dt;
-    //col = magma_quintic((dot(v2,vec2(1,0))*0.5+0.5)) * length(t.velocity) * 0.15 * uintBitsToFloat(t.fluid[WATER]);
-     col2 = magma_quintic(pow(length(tile.velocity) * 0.13 * (water + totalSediment), 0.25));//
-    // col2 = vec3(1) * water*3.0;
-    
-    // col2.r += totalSediment * 0.25;
-    // col2.g += dot(groundComp.xyz, vec3(1)) * 0.25;
-    // col2.b = 0.0;
-
-    // col2 = vec3(dot(groundComp.xyz, vec3(1))) * 0.125;
-
-    
-
-    col2 = max(col2,vec3(0));
-    col2 *= col2;
 
     if(showContour) {
         float h = groundLevel;
@@ -279,9 +245,6 @@ void main() {
     
     col2 = col; 
     col = (uMouse.x * 1 > gl_FragCoord.x) ? col2 : col;
-    //if (col.r < 0.0) col.r = 1.0;
-    //col = col2;
-    // col.r += tile.sediment * 100.0;
     col = sqrt(col);    
 
     if (showVelocity) {
@@ -306,9 +269,8 @@ void main() {
     vec2 crossHairSize = vec2(15.0,35.0);
     vec2 influence = (distance(p,uMouse.xy) - crossHairSize) / -crossHairSize;
     influence = smoothstep(0.0,1.0,influence);
+
     if (influence.x > 0.0 && uMouse.z > 0.5 || distance(p,vec2(1000,680))<-5.0) {
-
-
         tiles[int(p.x)][int(p.y)].fluid[WATER] = floatBitsToUint(0.013+uintBitsToFloat(tile.fluid[WATER]));
         tiles[int(p.x)][int(p.y)].velocity = 0.4 * vec2(-20,1.0);
     }
@@ -324,18 +286,14 @@ void main() {
         tiles[int(p.x)][int(p.y)].fluid = packFluidLayer(fluid,water);
     }
 
-
     if(abs(distance(vec2(fc),uMouse.xy)-crossHairSize.x) <= 0.5) col = vec3(1,0,0);
     if(crossHairSize.x != crossHairSize.y && abs(distance(vec2(fc),uMouse.xy)-crossHairSize.y) <= 0.5) col = vec3(0,1,0);
-// col.rgb = vec3(1) * (tile.water) / 0.025;
 
-//if(fc.x < 0 || fc.y < -99999 || fc.x > MAPSIZE-1 || fc.y > MAPSIZE-1)col = mix(vec3(0.3,0.2,0.6),vec3(0.9,0.6,0.1),1.0);//
-
-if (any(isnan(col))) {
-    col = vec3(1,0,1);
-}
-if (any(isinf(col))) {
-    col = vec3(0,1,1);
-}
-FragColor = vec4(col, 1);
+    if (any(isnan(col))) {
+        col = vec3(1,0,1);
+    }
+    if (any(isinf(col))) {
+        col = vec3(0,1,1);
+    }
+    FragColor = vec4(col, 1);
 }

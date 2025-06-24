@@ -1,17 +1,11 @@
-
-
 const int LOGMAPSIZE = 10;
 const int MAPSIZE = int(1u << LOGMAPSIZE);
 
-
 // all units of distance are meters and units of time are seconds, unless otherwise stated
-
 const float dt = 0.01 ;
 const float maxVel = 8.0;
 const float dx = 1.0; // meters per grid square side
 const float g = -9.8;
-
-
 
 struct TerrainGenTrackedInfo {
     vec4 averageFlow;
@@ -38,7 +32,6 @@ struct unpackedLayer {
     float erosivity;
     float height;
 };
-
 
 #define ALLONES_4  15
 #define ALLONES_16 65535
@@ -69,9 +62,6 @@ uint pack24bitfloat(float v) {
 uvec4 getMaterialIDs(TerrainGenTileInfo t) {
     return t.ground >> 24;
 }
-
-
-
 
 unpackedLayer unpackGroundLayer(uint pgl) {
     unpackedLayer gl;
@@ -107,10 +97,8 @@ unpackedLayer[3] unpackFluidLayer(uvec4 pfl, out float water) {
     return fl;
 }
 
-
 uint packGroundLayer(unpackedLayer gl) {
     uint pgl = 0u;
-
     pgl |= (pack24bitfloat(gl.height) << 0);
     pgl |= (pack4bitfloat(gl.erosivity) << 24);
     pgl |= (pack4bitfloat(1.0/gl.restingAngle) << 28);
@@ -128,7 +116,6 @@ uvec4 packGroundLayer(unpackedLayer gl[4]) {
     return uvec4(packGroundLayer(gl[0]), packGroundLayer(gl[1]), packGroundLayer(gl[2]), packGroundLayer(gl[3]));
 }
 uvec4 packFluidLayer(unpackedLayer fl[3], float water) {
-
     return uvec4(packFluidLayer(fl[0]), packFluidLayer(fl[1]), packFluidLayer(fl[2]), floatBitsToUint(water));
 }
 
@@ -148,9 +135,7 @@ void addTo(inout unpackedLayer a, in unpackedLayer b) {
 }
 
 void addTo(inout unpackedLayer a[4], in unpackedLayer b[4]) {
-
     addTo(a[0],b[0]);
-
     addTo(a[1],b[1]);
     addTo(a[2],b[2]);
     addTo(a[3],b[3]);
@@ -180,12 +165,13 @@ uint findTopLayer(in unpackedLayer[4] ground) {
     for (uint topLayer = 0u; topLayer < 4u; topLayer++) {
         if (ground[topLayer].height > 0.0) return topLayer;
     }
-return 4u;
+    return 4u;
 }
 
 layout(binding = 2, std430) buffer world{
     TerrainGenTileInfo tiles[][MAPSIZE];
 };
+
 const ivec2 offsets[8] = {
     ivec2( 0,  1),
     ivec2( 0, -1),
@@ -198,6 +184,7 @@ const ivec2 offsets[8] = {
     ivec2(-1, -1)
 
 };
+
 #define UP 0
 #define DOWN 1
 #define RIGHT 2
@@ -208,16 +195,16 @@ const ivec2 offsets[8] = {
 #define DOWNRIGHT 6
 #define DOWNLEFT 7
 
-
-
-const vec3 GRAINSIZEMM = vec3(        0.005,
-                                      0.5,
-                                      8.0
+const vec3 GRAINSIZEMM = vec3(
+    0.005,
+    0.5,
+    8.0
 );
 
-const vec3 SETTLINGVELOCITYMMS = vec3(       0.001,
-                                             80.0,
-                                             300.0
+const vec3 SETTLINGVELOCITYMMS = vec3(
+    0.001,
+    80.0,
+    300.0
 );
 
 float weightedAverage(in vec3 values, in vec3 weights) {
@@ -244,8 +231,6 @@ float weightedMedian(in vec3 values, in vec3 weights) {
 #define IDFROMFLOATMAT(angle, erosivity) ((pack4bitfloat(angle) << 4) | (pack4bitfloat(erosivity)))
 #define IDFROMMAT(angle, erosivity) ((angle << 4) | erosivity)
 
-
-
 #define GRANITE     uvec2(18u,       BEDROCK)
 #define GRAVEL      uvec2(121u,     LARGE)
 #define GRAYSAND    uvec2(252u,     MEDIUM) // 156u
@@ -254,17 +239,17 @@ float weightedMedian(in vec3 values, in vec3 weights) {
 #define WETCLAY     uvec2(250u,     MEDIUM)
 #define DIRT        uvec2(124u,     MEDIUM)
 
-
-
 #define MATERIALID 0
 #define LAYER 1
 
 #define SP_m 0.5
 #define SP_n 1.0
 #define SP_K 1.0
+
 float streamPower(float A, float S) {
     return SP_K * pow(A, SP_m) * pow(S, SP_n);
 }
+
 uvec2 erodesInto(uint mat) {
     float r = random();
     switch (mat) {
@@ -329,7 +314,6 @@ vec3 getColorOfMat(uint mat, ivec2 pos) {
 const float SEDIMENTCOEF = 2.5;
 const float seaLevel = 14.0;
 
-
 float sedimentCapacity(in float velocity, in vec3 currentSedimentComp, in float depth) {
     const float totalSediment = currentSedimentComp.x + currentSedimentComp.y + currentSedimentComp.z;
     const float medianGrainSize = totalSediment > 0.0 ? weightedMedian(GRAINSIZEMM, currentSedimentComp) : GRAINSIZEMM[0];
@@ -340,10 +324,10 @@ float sedimentCapacity(in float velocity, in vec3 currentSedimentComp, in float 
     const float y = SEDIMENTCOEF * (0.0261 * ((U2 * medianGrainSize) / (gh * depth)) + 0.0142 * ((U3) / (gh * averageSettlingVelocity)) + 1.0459);
     return clamp(y,0.0,depth * 4.0);
 }
+
 float sedimentCapacity(in vec2 velocity, in vec3 currentSedimentComp, in float depth) {
     return sedimentCapacity(length(velocity), currentSedimentComp, depth);
 }
-
 
 float getGroundHeight(unpackedLayer[4] ground) {
     return ground[BEDROCK].height + ground[LARGE].height + ground[MEDIUM].height + ground[SMALL].height;
@@ -370,18 +354,13 @@ vec3 sampleNormal (ivec2 fc) {
     vec3 tangentY = vec3(0,1,waterLevels[UP]) - vec3(0,-1,waterLevels[DOWN]);
     return normalize(cross(tangentX, tangentY));
 }
+
 vec3 sampleNormal (vec4 waterLevels) {
     vec3 tangentX = vec3(1,0,waterLevels[RIGHT]) - vec3(-1,0,waterLevels[LEFT]);
     vec3 tangentY = vec3(0,1,waterLevels[UP]) - vec3(0,-1,waterLevels[DOWN]);
     return normalize(cross(tangentX, tangentY));
 }
-/*
-vec3 sampleNormal (ivec2 fc, TerrainGenTileInfo n[4]) {
-    vec3 tangentX = vec3(1,0,n[RIGHT].height + n[RIGHT].water) - vec3(-1,0,n[LEFT].height+n[LEFT].water);
-    vec3 tangentY = vec3(0,1,n[UP].height + n[UP].water) - vec3(0,-1,n[DOWN].height + n[DOWN].water);
-    return normalize(cross(tangentX, tangentY));
-}
-*/
+
 TerrainGenTileInfo sampleTile(in ivec2 fc) {
     return tiles[fc.x % MAPSIZE][fc.y % MAPSIZE];
 }
@@ -401,75 +380,3 @@ vec2 sampleTileHeight(in ivec2 p) {
     r.y = uintBitsToFloat(t.fluid[WATER]) + fluid[0].height + fluid[1].height + fluid[2].height;
     return r;
 }
-/*
-TerrainGenTileInfo sampleTile(in vec2 p) {
-
-    ivec2 i = ivec2(p);
-    TerrainGenTileInfo H = sampleTiles(i);
-    TerrainGenTileInfo t = H;
-
-    vec2 dx = fract(p);
-
-    TerrainGenTileInfo RL = sampleTiles(ivec2(p) + offsets[dx.x > 0.5 ? RIGHT : LEFT]);
-    TerrainGenTileInfo UD = sampleTiles(ivec2(p) + offsets[dx.y > 0.5 ? UP : DOWN]);
-    TerrainGenTileInfo C = sampleTiles(ivec2(p) + ivec2(round(dx) * 2.0 - 1.0));
-
-
-    t.water = interpolateStructureSample(dx, H, RL, UD, C, water);
-    t.height = interpolateStructureSample(dx, H, RL, UD, C, height);
-    t.sediment = interpolateStructureSample(dx, H, RL, UD, C, sediment);
-
-
-    vec2 dir = interpolateProcessedStructureSample(dx, H, RL, UD, C, tracked.averageFlow, normalize);
-        float len = interpolateProcessedStructureSample(dx, H, RL, UD, C, tracked.averageFlow, length);
-    t.tracked.averageFlow = normalize(dir) * len;
-
-
-
-    t.tracked.averageWater = interpolateStructureSample(dx, H, RL, UD, C, tracked.averageWater);
-    t.tracked.recentDeposition = interpolateStructureSample(dx, H, RL, UD, C, tracked.recentDeposition);
-
-        return t;
-
-
-}
-
-vec2 sampleTileHeight(in vec2 p) {
-
-ivec2 i = ivec2(p);
-TerrainGenTileInfo H = sampleTiles(i);
-vec2 t;
-t.x = H.height;
-t.y = H.water;
-return t;
-vec2 dx = fract(p);
-
-TerrainGenTileInfo RL = sampleTiles(ivec2(p) + offsets[dx.x > 0.5 ? RIGHT : LEFT]);
-TerrainGenTileInfo UD = sampleTiles(ivec2(p) + offsets[dx.y > 0.5 ? UP : DOWN]);
-TerrainGenTileInfo C = sampleTiles(ivec2(p) + ivec2(round(dx) * 2.0 - 1.0));
-
-t.x = interpolateStructureSample(dx, H, RL, UD, C, height);
-t.y = interpolateStructureSample(dx, H, RL, UD, C, water);
-
-    vec2 flow = interpolateStructureSample(dx, H, RL, UD, C, tracked.averageFlow);
-    float flowLen = interpolateProcessedStructureSample(dx, H, RL, UD, C, tracked.averageFlow,length);
-  //  t.y = max((abs(flow.x) + abs(flow.y)) * 40.0,t.y);
-//t.y = max(flowLen * 40.0,t.y);
-
-return t;
-return round(t * 128.0) / 128.0;
-
-
-}
-
-vec3 sampleNormal (vec2 p) {
-    vec2 n[4];
-    for (int i = 0; i < 4; i++) {
-        vec2 o = offsets[i];
-        n[i] = sampleTileHeight(p + o * 0.5) / 0.5;
-    }
-    vec3 tangentX = vec3(1,0,n[RIGHT].x + n[RIGHT].y) - vec3(-1,0,n[LEFT].x+n[LEFT].y);
-    vec3 tangentY = vec3(0,1,n[UP].x + n[UP].y) - vec3(0,-1,n[DOWN].x + n[DOWN].y);
-    return normalize(cross(tangentX, tangentY));
-}
-*/
