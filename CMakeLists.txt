@@ -13,12 +13,11 @@ include_directories(Libraries/include)
 #find_package( glfw3 3.3 REQUIRED )
 #asdsad
 add_library(stb_image Libraries/include/stb_image.c Libraries/include/stb_image.h)
+add_library(msf_gif Libraries/include/msf_gif.c Libraries/include/msf_gif.h)
 add_library(texture graphics/texture.cpp graphics/texture.h)
 add_library(shader graphics/shader.cpp graphics/shader.h)
 
-
 add_executable(layeredterrain
-
         glad.c
         main.cpp
         main.h
@@ -34,3 +33,4 @@ target_link_libraries(layeredterrain ${CMAKE_SOURCE_DIR}/Libraries/lib/libglfw3.
 target_link_libraries(layeredterrain shader)
 target_link_libraries(layeredterrain texture)
 target_link_libraries(layeredterrain stb_image)
+target_link_libraries(layeredterrain msf_gif)

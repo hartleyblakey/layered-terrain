@@ -78,14 +78,12 @@ vec3 colorTerrain(vec4 groundComp, ivec2 fc, vec3 normal) {
 
     vec3 sunColor = vec3(1.0,0.8,0.65);
 
-    vec3 c = rock;
-    c = mix(c,gravel,clamp(4.0 * (groundComp[LARGE]),0.0,1.0));
-    c = mix(c,sand,clamp(4.0 * (groundComp[MEDIUM]+groundComp[SMALL]),0.0,1.0));
+
    //  c = mix(c,snow,clamp(pow(normal.z,3.0) * (height-85.0)*0.125,0.0,1.0));
     vec3 sun = normalize(vec3(2.4,2.3,1.0));
 
     float sunOcclusion = pow(max(dot(normal,sun), 0.0), 1.0);
-    float skyOcclusion = max(dot(normal, vec3(0, 0, 1)), 0.0) * mix(0.25,1.25,ao);
+    float skyOcclusion = max(dot(normal, vec3(0, 0, 1)), 0.0) * mix(0.25,1.25, ao);
 
 #ifdef LARGE_AO
     for (int i = 0; i < 16; i++) {
@@ -108,16 +106,25 @@ vec3 colorTerrain(vec4 groundComp, ivec2 fc, vec3 normal) {
     }
 #endif
 
-    vec3 light = mix(pow(sunColor,vec3(1.5)),pow(sunColor,vec3(8.0)),pow(1.0-sunOcclusion,6.0)) * 3.0 * sunOcclusion;
+    vec3 albedo = rock;
+    albedo = mix(albedo, gravel, clamp(4.0 * (groundComp[LARGE]), 0.0, 1.0));
+    albedo = mix(albedo, sand, clamp(4.0 * (groundComp[MEDIUM] + groundComp[SMALL]), 0.0, 1.0));
+
+    vec3 light = mix(
+        pow(sunColor, vec3(1.5)), 
+        pow(sunColor, vec3(8.0)), 
+        pow(1.0 - sunOcclusion, 6.0)
+    );
+    light *= 3.0 * sunOcclusion;
     light += vec3(0.7,0.8,1.0) * 0.45 * (skyOcclusion);
-    light += pow(sunColor,vec3(4.0)) * 0.2 *  mix(0.25,1.25,ao) * max(dot(normal,-sun),0.0);
+    light += pow(sunColor, vec3(4.0)) * 0.2 *  mix(0.25, 1.25, ao) * max(dot(normal, -sun), 0.0);
     
-    
-    c *= light;
+    light *= albedo;
+    return light;
+
     // c = normal * 0.5 + 0.5;
      // c = vec3(sunOcclusion);
      //  c = vec3(skyOcclusion);
-    return c;
 }
 
 vec3 colorWater(TerrainGenTileInfo tile) {
@@ -218,20 +225,19 @@ void main() {
 
     vec4 groundComp = vec4(ground[0].height,ground[1].height,ground[2].height,ground[3].height);
 
-    col = colorTerrain(groundComp + vec4(sedComp*0.0,0.0), fc, normal);
-
     float percentOut = clamp( ((wout.x + wout.y + wout.z + wout.w) / max(water,0.001)),0.0,1.0);
-
-    vec3 waterScatter = vec3(0.01,0.4,0.7);
-
-    vec3 waterAbsorption = vec3(0.7,0.3,0.1);
-
     float waterDepth = waterLevel - groundLevel;
 
+    vec3 waterScatter = vec3(0.01,0.4,0.7);
+    vec3 waterAbsorption = vec3(0.7,0.3,0.1);
+
+    col  = colorTerrain(groundComp, fc, normal);
     col *= exp(-water * waterAbsorption * 2.0);
     col += vec3(log(1.0 + waterScatter * waterDepth * 122.53)) * 0.01;
-    setSeed(uvec3(fc + ivec2(tile.velocity * 1),(uFrames*0+uint(random()*10.0))/10));
-    col += vec3(random()) * clamp(dot(abs(tile.velocity)*dt,vec2(1)) * clamp(waterDepth,0.0,0.2) * 7.2 - 0.02, 0.0, 1.0);
+
+    setSeed(uvec3(fc + ivec2(tile.velocity * 1), uint(random() * 10.0) / 10));
+
+    col += random() * clamp(dot(abs(tile.velocity) * dt, vec2(1)) * clamp(waterDepth, 0.0, 0.2) * 7.2 - 0.02, 0.0, 1.0);
 
     vec3 col2 =  vec3((water) / 0.120);
 

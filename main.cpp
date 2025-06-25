@@ -3,12 +3,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/euler_angles.hpp>
 #include <stb_image.h>
+#include <msf_gif.h>
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
-
-#include "gif.h"
 
 #include <GLFW/glfw3.h>
 
@@ -180,6 +179,10 @@ typedef struct TerrainGenTrackedInfo {
     float netDeposition;
     float averageWater;
 }TerrainGenTrackedInfo;
+
+/**
+ * @brief The values held by each tile in the grid
+ */
 typedef struct TerrainGenTileInfo {
     uvec4 ground;
     uvec4 fluid;
@@ -194,7 +197,25 @@ typedef struct TerrainGenTileInfo {
 const int LOGMAPSIZE = 10;
 const int MAPSIZE = (1 << LOGMAPSIZE);
 
-int main(int, char**){
+/**
+ * @brief Flip an image vertically
+ * 
+ * @param image a pointer to an array of rgba8 pixels
+ * @param width the width of the image
+ * @param height the height of the image
+ * 
+ * @pre the length of image is width * height * 4
+ */
+void vFlip(uint8_t* image, size_t width, size_t height) {
+    // width is 4x longer than reported because of rgba pixels
+    for (size_t y = 0; y < height / 2; y++) {
+        for (size_t x = 0; x < width * 4; x++) {
+            std::swap(image[y * width * 4 + x], image[(height - y - 1) * width * 4 + x]);
+        }
+    }
+}
+
+int main(int, char**) {
     
     //return 0;
     printf("Hello, from helloworld!\n");
@@ -323,11 +344,14 @@ int main(int, char**){
     bool recordingGif = false;
     int recordedGifFrames = 0;
     int gifFrameStep = 250;
-    GifWriter gifWriter = {};
+
+    MsfGifState msfGifState = {};
+    
     uint8_t* currentGifFrame;
 
     int gifFrameCount = 0;
-
+    int gifQuality = 16;
+    float gifFrameDuration = 0.1; // seconds
     int iterationsPerFrame = 1;
     int heightmapErosionIterations = 0;
     glfwSwapInterval(1);
@@ -469,35 +493,49 @@ int main(int, char**){
 
         ImGui::Text("Gif Recording");
         if (!recordingGif) {
-            if (ImGui::InputInt("Rendered frames per gif frame", &gifFrameStep)) {
-                gifFrameStep = glm::clamp(gifFrameStep, 1, 512);
-            }
+
+            ImGui::SliderInt("##Rendered frames per gif frame", &gifFrameStep, 1, 512, "frame step: %d frames");
+            gifFrameStep = glm::clamp(gifFrameStep, 1, 512);
+            
+            ImGui::SliderFloat("##frame duration", &gifFrameDuration, 0.01f, 0.25f, "frame duration: %.3f seconds");
+            gifFrameDuration = glm::clamp(gifFrameDuration, 0.01f, 1.0f);
+
+            ImGui::SliderInt("##gif quality", &gifQuality, 1, 16, "quality: %d");
+            gifQuality = glm::clamp(gifQuality, 1, 16);
 
             if (ImGui::Button("Record GIF")) {
                 gifFrameCount = 0;
                 const char* gifWriterFilename = "output.gif";
                 currentGifFrame = (uint8_t*)malloc(MAPSIZE * MAPSIZE * 4);
-                gifWriter = {};
-                GifBegin(&gifWriter, gifWriterFilename, MAPSIZE, MAPSIZE, 10, 4, true);
+
+                msfGifState = {};
+                msf_gif_begin(&msfGifState, MAPSIZE, MAPSIZE);
+
                 recordingGif = true;
             }
         }
 
         std::string stopRecordingLabel = std::format("Stop recording ({})###StopGifRecordingButton", gifFrameCount / gifFrameStep + 1);
-        if (recordingGif) {
-            if (gifFrameCount > 0 && ImGui::Button(stopRecordingLabel.c_str())) {
-                recordingGif = false;
-                
-                GifEnd(&gifWriter);
-                free(currentGifFrame);
-            }
 
-            if (gifFrameCount % gifFrameStep == 0) {
-                glReadnPixels(0, 0, MAPSIZE, MAPSIZE, GL_RGBA, GL_UNSIGNED_BYTE, MAPSIZE * MAPSIZE * 4, currentGifFrame);
-                GifWriteFrame(&gifWriter, currentGifFrame, MAPSIZE, MAPSIZE, 10, 4, true);
+        if (recordingGif && gifFrameCount > 0 && ImGui::Button(stopRecordingLabel.c_str())) {
+            recordingGif = false;
+
+            MsfGifResult result = msf_gif_end(&msfGifState);
+            if (result.data) {
+                FILE * fp = fopen("output.gif", "wb");
+                fwrite(result.data, result.dataSize, 1, fp);
+                fclose(fp);
             }
+            msf_gif_free(result);
+
+            free(currentGifFrame);
+            currentGifFrame = nullptr;
         }
 
+        if (recordingGif && gifFrameCount % gifFrameStep == 0) {
+            glReadnPixels(0, 0, MAPSIZE, MAPSIZE, GL_RGBA, GL_UNSIGNED_BYTE, MAPSIZE * MAPSIZE * 4, currentGifFrame);
+            msf_gif_frame(&msfGifState, currentGifFrame, max(int(gifFrameDuration / 100.0), 1), 16, -MAPSIZE * 4);
+        }
 
         ImGui::End();
         ImGui::Render();
