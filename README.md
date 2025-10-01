@@ -2,6 +2,14 @@
 
   <img src="screenshots/graveltable.png" alt="screenshot of eroded gravel slope" width="256" height="256"> <img src="screenshots/timelapse.gif" alt="timelapse of terrain eroding" width="256" height="256"> <img src="screenshots/shadows.png" alt="screenshot of eroded terrain with shadows" width="256" height="256"> <img src="screenshots/flow.png" alt="Debug vis of flow rate" width="256" height="256">
 
+### Problems
+
+- Loses suspended "mass" over time
+- Runs extremely slowly
+- The end result does not look very much like eroded terrain
+
+### Details
+
 Terrain is represented as 3 layers of heightmaps, with an additional heightmaps to represent the water level and amount of suspended sediment of each size.
 
 Terrain is made up of 3 layers, with decreasing hardness and increasing carraying capacity:
@@ -18,13 +26,7 @@ The carrying capacity of the water depends on its volume and its velocity. This 
 
 The simulation is done on the GPU in openGL 4.6 compute shaders
 
-### Problems
 
-Loses eroded/deposited height over time due to a bug
-
-Performance is poor. For example, it takes minutes to erode a 1024x heightmap with an RTX 3050 ti laptop GPU.
-
-The end result does not look very much like eroded terrain
 
 ### 3rd Party Libraries
 
